@@ -51,7 +51,6 @@ def split_translations(s):
     raw = clean_translation(s)
     if not raw:
         return []
-    # OpenRussian trennt Bedeutungen überwiegend mit Semikolon.
     parts = [clean_translation(x) for x in raw.split(';')]
     out = []
     for p in parts:
@@ -77,7 +76,8 @@ def load_german():
     total = 0
     for url in OPENRUSSIAN:
         text = fetch(url)
-        reader = csv.DictReader(io.StringIO(text))
+        # Die OpenRussian-Dateien heißen .csv, sind tatsächlich aber TSV-Dateien.
+        reader = csv.DictReader(io.StringIO(text), delimiter='\t')
         bare_col = pick_col(reader.fieldnames, ['bare', 'word', 'lemma'])
         de_col = pick_col(reader.fieldnames, ['translations_de', 'translation_de', 'de'])
         if not bare_col or not de_col:
@@ -172,7 +172,6 @@ def build():
         if not vals:
             missing.append(ru)
             continue
-        # Kürzere, lernbare Übersetzungen zuerst; allzu lange Erläuterungen hinten.
         vals = sorted(dict.fromkeys(vals), key=lambda x: (len(x) > 55, len(x)))
         primary = vals[0]
         alternatives = [x for x in vals[1:6] if x != primary]
