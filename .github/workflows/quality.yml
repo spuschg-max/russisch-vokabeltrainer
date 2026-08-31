@@ -18,6 +18,7 @@ jobs:
           node --check features.js
           node --check speaking.js
           node --check forms.js
+          node --check voice-persistence.js
           node --check service-worker.js
       - name: Pflichtdateien prüfen
         run: |
@@ -27,9 +28,11 @@ jobs:
           test -s app-icon.svg
           test -s speaking.js
           test -s forms.js
+          test -s voice-persistence.js
           grep -q 'id="learnCard"' index.html
           grep -q 'id="discardCurrent"' index.html
           grep -q 'id="installApp"' index.html
           grep -q 'speaking.js' index.html
           grep -q 'forms.js' index.html
+          grep -q 'voice-persistence.js' index.html
           grep -q 'DEFAULT_VOCABULARY' data.js
