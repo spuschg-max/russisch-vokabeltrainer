@@ -1,11 +1,22 @@
 {
-  "name":"Russisch-Vokabeltrainer",
-  "short_name":"Russisch",
-  "description":"Persönlicher Russisch-Deutsch-Vokabeltrainer mit Wiederholsystem",
-  "start_url":"./",
-  "scope":"./",
-  "display":"standalone",
-  "background_color":"#eef1f5",
-  "theme_color":"#182033",
-  "lang":"de"
+  "name": "Russisch-Vokabeltrainer",
+  "short_name": "Russisch",
+  "description": "Persönlicher Russisch-Deutsch-Vokabeltrainer mit Wiederholsystem",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef1f5",
+  "theme_color": "#182033",
+  "lang": "de",
+  "categories": ["education"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
