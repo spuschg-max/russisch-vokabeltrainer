@@ -3,6 +3,7 @@
 const STORAGE_KEY='russischVokabeltrainer.v2';
 const EXERCISE_KEY='russischVokabeltrainer.exercises.v1';
 const HASH_PREFIX='#exercise=';
+const HASH_GZIP_PREFIX='#exercise-gz=';
 const $=s=>document.querySelector(s);
 const clone=x=>JSON.parse(JSON.stringify(x));
 
@@ -25,10 +26,15 @@ function makeState(words){
 }
 function syncActive(store){const state=getState();if(state&&store?.exercises?.[store.activeId])store.exercises[store.activeId].state=clone(state);}
 function uniqueId(store){let id='exercise-'+Date.now();while(store.exercises?.[id])id+='x';return id;}
-function b64urlDecode(s){
+function b64urlBytes(s){
   s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';
-  const bin=atob(s),bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  const bin=atob(s);return Uint8Array.from(bin,c=>c.charCodeAt(0));
+}
+function b64urlDecode(s){return new TextDecoder().decode(b64urlBytes(s));}
+async function gzipUrlDecode(s){
+  if(typeof DecompressionStream!=='function')throw new Error('Dieser Browser unterstützt den komprimierten Importlink noch nicht.');
+  const bytes=b64urlBytes(s),stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return await new Response(stream).text();
 }
 
 function importObject(obj,sourceName='Importierte Übung'){
@@ -58,11 +64,13 @@ async function importClipboard(){
     toast(`${r.count} Vokabeln als „${r.name}“ importiert.`);setTimeout(()=>location.reload(),650);
   }catch(e){toast('Import nicht möglich: '+(e?.message||'ungültiger Text'));}
 }
-function importFromHash(){
-  if(!location.hash.startsWith(HASH_PREFIX))return false;
+async function importFromHash(){
+  const isGzip=location.hash.startsWith(HASH_GZIP_PREFIX),isPlain=location.hash.startsWith(HASH_PREFIX);
+  if(!isGzip&&!isPlain)return false;
   try{
-    const encoded=location.hash.slice(HASH_PREFIX.length);if(!encoded)return false;
-    const obj=JSON.parse(b64urlDecode(encoded)),r=importObject(obj,'Importierte Übung');
+    const encoded=location.hash.slice((isGzip?HASH_GZIP_PREFIX:HASH_PREFIX).length);if(!encoded)return false;
+    const text=isGzip?await gzipUrlDecode(encoded):b64urlDecode(encoded);
+    const obj=JSON.parse(text),r=importObject(obj,'Importierte Übung');
     history.replaceState(null,'',location.pathname+location.search);
     toast(`${r.count} Vokabeln als „${r.name}“ importiert.`);setTimeout(()=>location.reload(),650);return true;
   }catch(e){
@@ -80,14 +88,14 @@ function inject(){
   const anchor=$('#exerciseSettingsPanel')||$('#installPanel');if(!anchor)return;
   const panel=document.createElement('div');panel.id='exercisePackagePanel';panel.className='panel';panel.innerHTML=`
     <h3>Private Übung importieren</h3>
-    <p>Am einfachsten auf dem Handy: Übungstext kopieren und auf <strong>Aus Zwischenablage importieren</strong> tippen. Die Daten bleiben nur auf diesem Gerät.</p>
+    <p>Am einfachsten auf dem Handy: Einen Import-Link antippen. Alternativ kannst du Übungstext kopieren und auf <strong>Aus Zwischenablage importieren</strong> tippen. Die Daten bleiben nur auf diesem Gerät.</p>
     <div class="button-wrap">
       <button id="importExerciseClipboard" class="primary" type="button">Aus Zwischenablage importieren</button>
       <label class="secondary file-button">Aus Datei importieren<input id="importExercisePackage" type="file" accept="application/json,.json"></label>
       <button id="exportExercisePackage" class="secondary" type="button">Aktive Übung als Datei</button>
     </div>
     <details class="paste-details"><summary>Falls die Zwischenablage nicht erlaubt ist</summary><textarea id="exercisePasteText" rows="5" placeholder="Übungstext hier einfügen …"></textarea><button id="importExercisePaste" class="secondary" type="button">Eingefügten Text importieren</button></details>
-    <p class="exercise-package-note">Ein Import legt eine neue, getrennte Übung mit eigenem Lernstand an. Ein-Klick-Importlinks funktionieren ebenfalls; der Inhalt steht nur im Linkfragment und wird nicht an den Server gesendet.</p>`;
+    <p class="exercise-package-note">Ein Import legt eine neue, getrennte Übung mit eigenem Lernstand an. Ein-Klick-Importlinks verwenden nur das Linkfragment; die Übungsdaten werden dabei nicht an den Server gesendet.</p>`;
   anchor.insertAdjacentElement('afterend',panel);
   $('#importExercisePackage').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)importPackage(f);e.target.value='';});
   $('#importExerciseClipboard').addEventListener('click',importClipboard);
