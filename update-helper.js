@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.08.31.12';
+const BUILD='2026.08.31.13';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
@@ -22,6 +22,7 @@ function loadHelpers(){
   loadScript('import-code.js','importCode');
   loadScript('mic-recovery.js','micRecovery');
   loadScript('feedback-recovery.js','feedbackRecovery');
+  loadScript('audio-toggle.js','audioToggle');
 }
 function installUpdateHooks(){
   showVersion();loadHelpers();checkForUpdate(true);
