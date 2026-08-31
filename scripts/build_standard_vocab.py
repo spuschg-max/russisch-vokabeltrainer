@@ -30,6 +30,13 @@ TOPICS = {
     'политика': 'Gesellschaft/Politik', 'одежда': 'Kleidung',
 }
 
+# Zusätzliche gebräuchliche deutsche Bedeutungen, die Wörterbücher nicht immer
+# gemeinsam in einem Datensatz führen. Diese Varianten werden bei der Prüfung
+# wie weitere zulässige Übersetzungen behandelt.
+SEMANTIC_ALIASES = {
+    'народный': ['völkisch', 'volkstümlich', 'Volks-', 'Volks'],
+}
+
 
 def fetch(url):
     req = urllib.request.Request(url, headers={'User-Agent': 'russisch-vokabeltrainer-build/1.0'})
@@ -57,7 +64,9 @@ def split_translations(s):
         if not p or p in out:
             continue
         out.append(p)
-        if len(out) >= 6:
+        # Mehr Wörterbuchvarianten behalten: Gerade bei Adjektiven und Verben
+        # stehen brauchbare Synonyme häufig weiter hinten.
+        if len(out) >= 20:
             break
     return out
 
@@ -160,6 +169,26 @@ def load_smartool(levels):
     return [items[k] for k in order]
 
 
+def expand_german_variants(ru, vals):
+    out = []
+    for value in vals:
+        value = clean_translation(value)
+        if not value:
+            continue
+        if value not in out:
+            out.append(value)
+        # Wörterbuchangaben wie „Volks-“ sollen auch ohne den typographischen
+        # Bindestrich als Antwort gelten.
+        if value.endswith('-'):
+            bare = value[:-1].strip()
+            if bare and bare not in out:
+                out.append(bare)
+    for alias in SEMANTIC_ALIASES.get(norm(ru), []):
+        if alias not in out:
+            out.append(alias)
+    return out
+
+
 def build_pack(exact, folded, levels, out_name, js_prefix, id_prefix, name, description, min_words):
     smart = load_smartool(levels)
     words = []
@@ -167,13 +196,15 @@ def build_pack(exact, folded, levels, out_name, js_prefix, id_prefix, name, desc
     for item in smart:
         ru = item['ru']
         vals = exact.get(ru.lower()) or folded.get(norm(ru)) or []
-        vals = [v for v in vals if v]
+        vals = expand_german_variants(ru, vals)
         if not vals:
             missing.append(ru)
             continue
         vals = sorted(dict.fromkeys(vals), key=lambda x: (len(x) > 55, len(x)))
         primary = vals[0]
-        alternatives = [x for x in vals[1:6] if x != primary]
+        # Nicht nur fünf Synonyme: bis zu 18 sinnvolle Varianten dürfen als
+        # richtige deutsche Antwort gelten.
+        alternatives = [x for x in vals[1:19] if x != primary]
         topic_raw = ', '.join(item['topics'])
         words.append({
             'id': f"{id_prefix}::{norm(ru)}",
@@ -190,7 +221,7 @@ def build_pack(exact, folded, levels, out_name, js_prefix, id_prefix, name, desc
     level_order = {level: i for i, level in enumerate(levels)}
     words.sort(key=lambda w: (level_order.get(w['cefr'], 99), w['ru']))
     meta = {
-        'version': 1,
+        'version': 2,
         'name': name,
         'description': description,
         'license': 'CC BY-SA 4.0 (kombinierter Datenbestand)',
