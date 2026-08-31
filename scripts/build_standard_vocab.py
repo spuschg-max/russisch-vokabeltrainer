@@ -7,11 +7,11 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / 'standard-a1a2-data.js'
 
 SMARTOOL = {
     'A1': 'https://raw.githubusercontent.com/smartool/data-rus-eng/main/SMARTool_data_A1.csv',
     'A2': 'https://raw.githubusercontent.com/smartool/data-rus-eng/main/SMARTool_data_A2.csv',
+    'B1': 'https://raw.githubusercontent.com/smartool/data-rus-eng/main/SMARTool_data_B1.csv',
 }
 OPENRUSSIAN = [
     'https://raw.githubusercontent.com/Badestrand/russian-dictionary/master/nouns.csv',
@@ -125,10 +125,10 @@ def topic_text(level, raw):
     return level + ((' · ' + ' / '.join(topics[:3])) if topics else '')
 
 
-def load_smartool():
+def load_smartool(levels):
     items = {}
     order = []
-    for level in ('A1', 'A2'):
+    for level in levels:
         text = fetch(SMARTOOL[level])
         reader = csv.DictReader(io.StringIO(text))
         lemma_col = pick_col(reader.fieldnames, ['Target language lemma'])
@@ -156,13 +156,12 @@ def load_smartool():
             raw_topic = clean_translation(row.get(topic_col, '')) if topic_col else ''
             if raw_topic and raw_topic not in items[key]['topics']:
                 items[key]['topics'].append(raw_topic)
-    print(f'SMARTool: {len(items)} eindeutige A1/A2-Lemmata')
+    print(f"SMARTool {'/'.join(levels)}: {len(items)} eindeutige Lemmata")
     return [items[k] for k in order]
 
 
-def build():
-    exact, folded = load_german()
-    smart = load_smartool()
+def build_pack(exact, folded, levels, out_name, js_prefix, id_prefix, name, description, min_words):
+    smart = load_smartool(levels)
     words = []
     missing = []
     for item in smart:
@@ -177,7 +176,7 @@ def build():
         alternatives = [x for x in vals[1:6] if x != primary]
         topic_raw = ', '.join(item['topics'])
         words.append({
-            'id': f"std-a1a2::{norm(ru)}",
+            'id': f"{id_prefix}::{norm(ru)}",
             'ru': ru,
             'de': primary,
             'altDe': alternatives,
@@ -188,27 +187,54 @@ def build():
             'forms': '',
             'cefr': item['level'],
         })
-    words.sort(key=lambda w: (0 if w['cefr'] == 'A1' else 1, w['ru']))
+    level_order = {level: i for i, level in enumerate(levels)}
+    words.sort(key=lambda w: (level_order.get(w['cefr'], 99), w['ru']))
     meta = {
         'version': 1,
-        'name': 'Standardwortschatz A1/A2',
-        'description': 'Freier russischer A1/A2-Grundwortschatz: CEFR-Auswahl nach SMARTool, deutsche Bedeutungen aus OpenRussian.',
+        'name': name,
+        'description': description,
         'license': 'CC BY-SA 4.0 (kombinierter Datenbestand)',
         'sources': [
             {'name': 'SMARTool data-rus-eng', 'license': 'CC BY 4.0', 'url': 'https://github.com/smartool/data-rus-eng'},
             {'name': 'OpenRussian / Russian Dictionary Data', 'license': 'CC BY-SA 4.0', 'url': 'https://github.com/Badestrand/russian-dictionary'},
         ],
+        'levels': list(levels),
         'missingGermanCount': len(missing),
         'wordCount': len(words),
     }
-    payload = 'window.STANDARD_A1A2_META=' + json.dumps(meta, ensure_ascii=False, separators=(',', ':')) + ';\n'
-    payload += 'window.STANDARD_A1A2_VOCAB=' + json.dumps(words, ensure_ascii=False, separators=(',', ':')) + ';\n'
-    OUT.write_text(payload, encoding='utf-8')
-    print(f'Erzeugt: {OUT.name} mit {len(words)} Vokabeln; {len(missing)} ohne deutsche Zuordnung übersprungen')
+    out = ROOT / out_name
+    payload = f'window.{js_prefix}_META=' + json.dumps(meta, ensure_ascii=False, separators=(',', ':')) + ';\n'
+    payload += f'window.{js_prefix}_VOCAB=' + json.dumps(words, ensure_ascii=False, separators=(',', ':')) + ';\n'
+    out.write_text(payload, encoding='utf-8')
+    print(f'Erzeugt: {out.name} mit {len(words)} Vokabeln; {len(missing)} ohne deutsche Zuordnung übersprungen')
     if missing:
-        print('Ohne deutsche Zuordnung (erste 40): ' + ', '.join(missing[:40]))
-    if len(words) < 400:
-        raise RuntimeError('Zu wenige A1/A2-Vokabeln erzeugt; Quelldaten prüfen.')
+        print(f"Ohne deutsche Zuordnung {name} (erste 40): " + ', '.join(missing[:40]))
+    if len(words) < min_words:
+        raise RuntimeError(f'Zu wenige Wörter für {name} erzeugt; Quelldaten prüfen.')
+
+
+def build():
+    exact, folded = load_german()
+    build_pack(
+        exact, folded,
+        ('A1', 'A2'),
+        'standard-a1a2-data.js',
+        'STANDARD_A1A2',
+        'std-a1a2',
+        'Standardwortschatz A1/A2',
+        'Freier russischer A1/A2-Grundwortschatz: CEFR-Auswahl nach SMARTool, deutsche Bedeutungen aus OpenRussian.',
+        400,
+    )
+    build_pack(
+        exact, folded,
+        ('B1',),
+        'standard-b1-data.js',
+        'STANDARD_B1',
+        'std-b1',
+        'Standardwortschatz B1',
+        'Freier russischer B1-Aufbauwortschatz: B1-Auswahl nach SMARTool, deutsche Bedeutungen aus OpenRussian. A1/A2 bleiben als eigene Übung getrennt.',
+        300,
+    )
 
 
 if __name__ == '__main__':
