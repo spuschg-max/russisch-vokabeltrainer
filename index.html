@@ -4,8 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#182033">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Russisch">
   <title>Russisch-Vokabeltrainer</title>
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="app-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="app-icon.svg">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -37,6 +43,7 @@
           <div class="card-toolbar">
             <span id="cardTag" class="pill">Vokabel</span>
             <div class="card-actions">
+              <button id="discardCurrent" class="secondary compact" type="button" title="Diese Vokabel aus Übung 1 entfernen">Verwerfen</button>
               <button id="speakPrompt" class="icon-btn small" type="button" title="Vorlesen">🔊</button>
               <button id="editCurrent" class="icon-btn small" type="button" title="Vokabel bearbeiten">✎</button>
             </div>
@@ -133,6 +140,11 @@
           <label class="check-row"><input id="settingAutoplay" type="checkbox"> Russische Seite automatisch vorlesen</label>
           <label class="check-row"><input id="settingStrict" type="checkbox"> Strenger Vergleich bei russischer Rechtschreibung</label>
         </div>
+        <div id="installPanel" class="panel">
+          <h3>Auf dem Handy</h3>
+          <p id="installHint">Du kannst den Trainer mit eigenem Symbol auf dem Home-Bildschirm verwenden.</p>
+          <button id="installApp" class="primary" type="button">App-Symbol hinzufügen</button>
+        </div>
         <div class="panel">
           <h3>Daten</h3>
           <p>Exportiere regelmäßig eine Sicherung, wenn du den Browser wechselst oder Browserdaten löschst.</p>
@@ -172,5 +184,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="data.js"></script>
   <script src="app.js"></script>
+  <script src="features.js"></script>
 </body>
 </html>
