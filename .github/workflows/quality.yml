@@ -21,6 +21,7 @@ jobs:
           node --check voice-persistence.js
           node --check forms-voice.js
           node --check update-helper.js
+          node --check exercise-packages.js
           node --check service-worker.js
       - name: Pflichtdateien prüfen
         run: |
@@ -33,6 +34,7 @@ jobs:
           test -s voice-persistence.js
           test -s forms-voice.js
           test -s update-helper.js
+          test -s exercise-packages.js
           grep -q 'id="learnCard"' index.html
           grep -q 'id="discardCurrent"' index.html
           grep -q 'id="installApp"' index.html
@@ -41,4 +43,5 @@ jobs:
           grep -q 'voice-persistence.js' index.html
           grep -q 'forms-voice.js' index.html
           grep -q 'update-helper.js' index.html
+          grep -q 'exercise-packages.js' index.html
           grep -q 'DEFAULT_VOCABULARY' data.js
