@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.08.31.8';
+const BUILD='2026.08.31.9';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
@@ -14,9 +14,12 @@ async function checkForUpdate(force=false){
   const t=Date.now();if(!force&&t-lastCheck<60000)return;lastCheck=t;
   try{const reg=await navigator.serviceWorker.ready;await reg.update();}catch(e){}
 }
+function loadImportCode(){
+  if(document.querySelector('script[data-import-code]'))return;
+  const s=document.createElement('script');s.src='import-code.js?v='+BUILD;s.dataset.importCode='1';document.body.appendChild(s);
+}
 function installUpdateHooks(){
-  showVersion();
-  checkForUpdate(true);
+  showVersion();loadImportCode();checkForUpdate(true);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkForUpdate();});
   window.addEventListener('pageshow',()=>checkForUpdate());
   if('serviceWorker'in navigator){
