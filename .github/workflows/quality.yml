@@ -17,6 +17,7 @@ jobs:
           node --check data.js
           node --check features.js
           node --check speaking.js
+          node --check forms.js
           node --check service-worker.js
       - name: Pflichtdateien prüfen
         run: |
@@ -25,8 +26,10 @@ jobs:
           test -s manifest.webmanifest
           test -s app-icon.svg
           test -s speaking.js
+          test -s forms.js
           grep -q 'id="learnCard"' index.html
           grep -q 'id="discardCurrent"' index.html
           grep -q 'id="installApp"' index.html
           grep -q 'speaking.js' index.html
+          grep -q 'forms.js' index.html
           grep -q 'DEFAULT_VOCABULARY' data.js
