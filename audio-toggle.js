@@ -2,6 +2,7 @@
 'use strict';
 const AUDIO_KEY='russischVokabeltrainer.audio.v1';
 const VOICE_KEY='russischVokabeltrainer.voice.v2';
+const MIGRATION_KEY='russischVokabeltrainer.voiceDefaults.2026.08.31.14';
 const $=s=>document.querySelector(s);
 
 function loadAudio(){
@@ -14,15 +15,25 @@ function automaticMode(){return ($('#voiceQuickToggle')?.textContent||'').includ
 function learnReady(){return !!$('#view-learn')?.classList.contains('active')&&!!$('#resultPanel')?.classList.contains('hidden');}
 function listening(){return ($('#micButton')?.textContent||'').trim()==='●';}
 
-function ensurePromptAudioDefault(){
-  if(localStorage.getItem(AUDIO_KEY)!==null)return;
+function migrateVoiceDefaults(){
+  if(localStorage.getItem(MIGRATION_KEY))return;
   try{
     const voice=JSON.parse(localStorage.getItem(VOICE_KEY)||'{}');
+    voice.mode='auto';
     voice.speakPrompt=true;
     localStorage.setItem(VOICE_KEY,JSON.stringify(voice));
-    const cb=$('#speakPromptSetting');if(cb)cb.checked=true;
-  }catch(e){}
-  saveAudio();
+  }catch(e){
+    localStorage.setItem(VOICE_KEY,JSON.stringify({mode:'auto',speakPrompt:true,speakCorrection:true,advanceDelay:2600}));
+  }
+  audio.muted=false;saveAudio();
+  localStorage.setItem(MIGRATION_KEY,'1');
+  setTimeout(()=>{
+    const mode=$('#trainingMode');
+    if(mode){mode.value='auto';mode.dispatchEvent(new Event('change',{bubbles:true}));}
+    const cb=$('#speakPromptSetting');
+    if(cb){cb.checked=true;cb.dispatchEvent(new Event('change',{bubbles:true}));}
+    render();
+  },120);
 }
 
 function installSpeechMute(){
@@ -36,9 +47,9 @@ function installSpeechMute(){
 }
 
 function maybeRestartMic(){
-  if(!audio.muted||!automaticMode()||!learnReady()||listening())return;
+  if(!automaticMode()||!learnReady()||listening())return;
   const mic=$('#micButton');if(!mic||mic.disabled)return;
-  setTimeout(()=>{if(audio.muted&&automaticMode()&&learnReady()&&!listening()){try{mic.click()}catch(e){}}},260);
+  setTimeout(()=>{if(automaticMode()&&learnReady()&&!listening()){try{mic.click()}catch(e){}}},360);
 }
 
 function render(){
@@ -55,7 +66,7 @@ function setMuted(value,announce=true){
 function toggle(){setMuted(!audio.muted);}
 
 function inject(){
-  ensurePromptAudioDefault();installSpeechMute();
+  migrateVoiceDefaults();installSpeechMute();
   const auto=$('#voiceQuickToggle');
   if(auto&&!$('#audioQuickToggle')){
     const b=document.createElement('button');b.id='audioQuickToggle';b.className='secondary compact audio-quick';b.type='button';b.addEventListener('click',toggle);auto.insertAdjacentElement('afterend',b);
@@ -75,6 +86,7 @@ function inject(){
     `;document.head.appendChild(s);
   }
   render();
+  setTimeout(maybeRestartMic,900);
 }
 
 setTimeout(inject,80);
