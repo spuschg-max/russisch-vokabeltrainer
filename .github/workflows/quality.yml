@@ -15,11 +15,15 @@ jobs:
         run: |
           node --check app.js
           node --check data.js
+          node --check features.js
           node --check service-worker.js
       - name: Pflichtdateien prüfen
         run: |
           test -s index.html
           test -s styles.css
           test -s manifest.webmanifest
+          test -s app-icon.svg
           grep -q 'id="learnCard"' index.html
+          grep -q 'id="discardCurrent"' index.html
+          grep -q 'id="installApp"' index.html
           grep -q 'DEFAULT_VOCABULARY' data.js
