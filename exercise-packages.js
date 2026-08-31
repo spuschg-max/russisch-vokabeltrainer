@@ -71,29 +71,36 @@ async function importPackage(file){
     toast(r.existing?`„${r.name}“ ist bereits vorhanden und wurde geöffnet.`:`${r.count} Vokabeln als „${r.name}“ importiert.`);setTimeout(()=>location.reload(),650);
   }catch(e){toast('Import nicht möglich: '+(e?.message||'ungültige Datei'));}
 }
+async function objectFromImportText(text){
+  text=String(text||'').trim();if(!text)throw new Error('Bitte zuerst den privaten Import-Link kopieren.');
+  let hash=text;
+  try{if(/^https?:\/\//i.test(text))hash=new URL(text).hash;}catch(e){}
+  if(hash.startsWith(HASH_PACK_PREFIX)){
+    const token=hash.slice(HASH_PACK_PREFIX.length),dot=token.indexOf('.');if(dot<1)throw new Error('Ungültiger privater Importlink');
+    return await decryptPrivatePack(token.slice(0,dot),token.slice(dot+1));
+  }
+  if(hash.startsWith(HASH_GZIP_PREFIX))return JSON.parse(await gzipUrlDecode(hash.slice(HASH_GZIP_PREFIX.length)));
+  if(hash.startsWith(HASH_PREFIX))return JSON.parse(b64urlDecode(hash.slice(HASH_PREFIX.length)));
+  if(/^pack=/i.test(text)){
+    const token=text.slice(5),dot=token.indexOf('.');if(dot<1)throw new Error('Ungültiger privater Importlink');
+    return await decryptPrivatePack(token.slice(0,dot),token.slice(dot+1));
+  }
+  return JSON.parse(text);
+}
 async function importClipboard(){
   try{
     let text='';
     if(navigator.clipboard?.readText){try{text=await navigator.clipboard.readText();}catch(e){}}
     if(!text)text=$('#exercisePasteText')?.value||'';
-    text=text.trim();if(!text)throw new Error('Bitte zuerst den Übungstext kopieren oder einfügen.');
-    const obj=JSON.parse(text),r=importObject(obj,'Importierte Übung');
+    const obj=await objectFromImportText(text),r=importObject(obj,'Importierte Übung');
     toast(r.existing?`„${r.name}“ ist bereits vorhanden und wurde geöffnet.`:`${r.count} Vokabeln als „${r.name}“ importiert.`);setTimeout(()=>location.reload(),650);
-  }catch(e){toast('Import nicht möglich: '+(e?.message||'ungültiger Text'));}
+  }catch(e){toast('Import nicht möglich: '+(e?.message||'ungültiger Link oder Text'));}
 }
 async function importFromHash(){
   const isPack=location.hash.startsWith(HASH_PACK_PREFIX),isGzip=location.hash.startsWith(HASH_GZIP_PREFIX),isPlain=location.hash.startsWith(HASH_PREFIX);
   if(!isPack&&!isGzip&&!isPlain)return false;
   try{
-    let obj;
-    if(isPack){
-      const token=location.hash.slice(HASH_PACK_PREFIX.length),dot=token.indexOf('.');if(dot<1)throw new Error('Ungültiger privater Importlink');
-      obj=await decryptPrivatePack(token.slice(0,dot),token.slice(dot+1));
-    }else{
-      const encoded=location.hash.slice((isGzip?HASH_GZIP_PREFIX:HASH_PREFIX).length);if(!encoded)return false;
-      obj=JSON.parse(isGzip?await gzipUrlDecode(encoded):b64urlDecode(encoded));
-    }
-    const r=importObject(obj,'Importierte Übung');
+    const obj=await objectFromImportText(location.hash),r=importObject(obj,'Importierte Übung');
     history.replaceState(null,'',location.pathname+location.search);
     toast(r.existing?`„${r.name}“ ist bereits vorhanden und wurde geöffnet.`:`${r.count} Vokabeln als „${r.name}“ importiert.`);setTimeout(()=>location.reload(),650);return true;
   }catch(e){
@@ -111,13 +118,13 @@ function inject(){
   const anchor=$('#exerciseSettingsPanel')||$('#installPanel');if(!anchor)return;
   const panel=document.createElement('div');panel.id='exercisePackagePanel';panel.className='panel';panel.innerHTML=`
     <h3>Private Übung importieren</h3>
-    <p>Am einfachsten auf dem Handy: Einen privaten Import-Link antippen. Alternativ kannst du Übungstext kopieren und auf <strong>Aus Zwischenablage importieren</strong> tippen. Die Vokabeln bleiben lokal auf diesem Gerät.</p>
+    <p>Für die installierte iPhone-App: privaten Import-Link kopieren und hier auf <strong>Import-Link aus Zwischenablage</strong> tippen. Die Übung wird dann direkt in dieser App gespeichert.</p>
     <div class="button-wrap">
-      <button id="importExerciseClipboard" class="primary" type="button">Aus Zwischenablage importieren</button>
+      <button id="importExerciseClipboard" class="primary" type="button">Import-Link aus Zwischenablage</button>
       <label class="secondary file-button">Aus Datei importieren<input id="importExercisePackage" type="file" accept="application/json,.json"></label>
       <button id="exportExercisePackage" class="secondary" type="button">Aktive Übung als Datei</button>
     </div>
-    <details class="paste-details"><summary>Falls die Zwischenablage nicht erlaubt ist</summary><textarea id="exercisePasteText" rows="5" placeholder="Übungstext hier einfügen …"></textarea><button id="importExercisePaste" class="secondary" type="button">Eingefügten Text importieren</button></details>
+    <details class="paste-details"><summary>Falls Zugriff auf die Zwischenablage nicht erlaubt ist</summary><textarea id="exercisePasteText" rows="5" placeholder="Privaten Import-Link hier einfügen …"></textarea><button id="importExercisePaste" class="secondary" type="button">Eingefügten Link importieren</button></details>
     <p class="exercise-package-note">Private Kurzlinks laden nur verschlüsselte Übungsdaten. Der Entschlüsselungsschlüssel steht ausschließlich hinter dem # im Link und wird vom Browser nicht an den Server übertragen.</p>`;
   anchor.insertAdjacentElement('afterend',panel);
   $('#importExercisePackage').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)importPackage(f);e.target.value='';});
