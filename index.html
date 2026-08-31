@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#182033">
+  <title>Russisch-Vokabeltrainer</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">РУССКИЙ · DEUTSCH</div>
+        <h1>Vokabeltrainer</h1>
+      </div>
+      <button id="themeToggle" class="icon-btn" type="button" title="Darstellung wechseln" aria-label="Darstellung wechseln">☾</button>
+    </header>
+
+    <nav class="tabs" aria-label="Hauptnavigation">
+      <button class="tab active" data-view="learn">Lernen</button>
+      <button class="tab" data-view="words">Vokabeln</button>
+      <button class="tab" data-view="progress">Fortschritt</button>
+      <button class="tab" data-view="settings">Einstellungen</button>
+    </nav>
+
+    <main>
+      <section id="view-learn" class="view active">
+        <div class="summary-row">
+          <div class="mini-stat"><strong id="dueCount">0</strong><span>heute fällig</span></div>
+          <div class="mini-stat"><strong id="newCount">0</strong><span>neu</span></div>
+          <div class="mini-stat"><strong id="streakCount">0</strong><span>Serie</span></div>
+        </div>
+
+        <article id="learnCard" class="learn-card">
+          <div class="card-toolbar">
+            <span id="cardTag" class="pill">Vokabel</span>
+            <div class="card-actions">
+              <button id="speakPrompt" class="icon-btn small" type="button" title="Vorlesen">🔊</button>
+              <button id="editCurrent" class="icon-btn small" type="button" title="Vokabel bearbeiten">✎</button>
+            </div>
+          </div>
+
+          <div id="promptLabel" class="side-label">Russisch</div>
+          <div id="promptText" class="prompt-text">Готов?</div>
+          <div id="hintText" class="hint-text"></div>
+
+          <div class="answer-zone">
+            <label id="answerLabel" for="answerInput">Deutsch</label>
+            <div class="answer-line">
+              <input id="answerInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Antwort eingeben …">
+              <button id="micButton" class="icon-btn" type="button" title="Antwort sprechen" aria-label="Antwort sprechen">🎙</button>
+            </div>
+            <button id="checkAnswer" class="primary" type="button">Prüfen</button>
+          </div>
+
+          <div id="resultPanel" class="result-panel hidden">
+            <div id="resultMark" class="result-mark"></div>
+            <div class="solution"><span>Lösung</span><strong id="solutionText"></strong></div>
+            <div id="acceptedText" class="accepted"></div>
+            <div class="rating-grid">
+              <button class="rating wrong" data-rating="again">Falsch<br><small>noch einmal</small></button>
+              <button class="rating hard" data-rating="hard">Unsicher<br><small>früher wiederholen</small></button>
+              <button class="rating good" data-rating="good">Gewußt<br><small>normal weiter</small></button>
+              <button class="rating easy" data-rating="easy">Sehr sicher<br><small>später wiederholen</small></button>
+            </div>
+          </div>
+        </article>
+
+        <div id="emptyLearn" class="empty-state hidden">
+          <div class="empty-icon">✓</div>
+          <h2>Für jetzt geschafft</h2>
+          <p>Alle aktuell fälligen Vokabeln sind bearbeitet. Sicher beherrschte Wörter kommen später wieder.</p>
+          <button id="practiceExtra" class="secondary" type="button">Trotzdem weiter üben</button>
+        </div>
+      </section>
+
+      <section id="view-words" class="view">
+        <div class="section-head">
+          <div><h2>Vokabeln</h2><p id="wordCountText"></p></div>
+          <button id="addWord" class="primary compact" type="button">+ Vokabel</button>
+        </div>
+        <div class="filters">
+          <input id="wordSearch" type="search" placeholder="Russisch oder Deutsch suchen …">
+          <select id="wordFilter">
+            <option value="all">Alle</option>
+            <option value="due">Fällig</option>
+            <option value="new">Neu</option>
+            <option value="learning">Im Lernen</option>
+            <option value="mastered">Sicher</option>
+            <option value="verbs">Nur Verben</option>
+          </select>
+        </div>
+        <div id="wordList" class="word-list"></div>
+      </section>
+
+      <section id="view-progress" class="view">
+        <div class="section-head"><div><h2>Fortschritt</h2><p>Dein Lernstand wird nur auf diesem Gerät gespeichert.</p></div></div>
+        <div class="stats-grid">
+          <div class="stat-card"><span>Vokabeln gesamt</span><strong id="statTotal">0</strong></div>
+          <div class="stat-card"><span>Sicher</span><strong id="statMastered">0</strong></div>
+          <div class="stat-card"><span>Heute beantwortet</span><strong id="statToday">0</strong></div>
+          <div class="stat-card"><span>Trefferquote heute</span><strong id="statAccuracy">–</strong></div>
+          <div class="stat-card"><span>Lerntage in Folge</span><strong id="statStreak">0</strong></div>
+          <div class="stat-card"><span>Längste Serie</span><strong id="statBestStreak">0</strong></div>
+        </div>
+        <div class="panel">
+          <h3>Lernstufen</h3>
+          <div id="levelBars" class="level-bars"></div>
+        </div>
+        <div class="panel">
+          <h3>Schwierige Vokabeln</h3>
+          <div id="difficultList" class="compact-list"></div>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <div class="section-head"><div><h2>Einstellungen</h2><p>Der Trainer paßt die Wiederholungen an deinen Lernstand an.</p></div></div>
+        <div class="panel form-panel">
+          <label>Abfragerichtung
+            <select id="settingDirection">
+              <option value="mixed">Gemischt</option>
+              <option value="ru-de">Russisch → Deutsch</option>
+              <option value="de-ru">Deutsch → Russisch</option>
+            </select>
+          </label>
+          <label>Neue Vokabeln pro Lerntag
+            <input id="settingNewLimit" type="number" min="1" max="100" step="1">
+          </label>
+          <label class="check-row"><input id="settingTyping" type="checkbox"> Antwort eintippen und automatisch vergleichen</label>
+          <label class="check-row"><input id="settingInfinitiveFirst" type="checkbox"> Bei Verben zuerst nur den Infinitiv lernen</label>
+          <label class="check-row"><input id="settingAutoplay" type="checkbox"> Russische Seite automatisch vorlesen</label>
+          <label class="check-row"><input id="settingStrict" type="checkbox"> Strenger Vergleich bei russischer Rechtschreibung</label>
+        </div>
+        <div class="panel">
+          <h3>Daten</h3>
+          <p>Exportiere regelmäßig eine Sicherung, wenn du den Browser wechselst oder Browserdaten löschst.</p>
+          <div class="button-wrap">
+            <button id="exportData" class="secondary">Sicherung exportieren</button>
+            <label class="secondary file-button">Sicherung importieren<input id="importData" type="file" accept="application/json,.json"></label>
+            <button id="exportWords" class="secondary">Vokabeln als CSV</button>
+          </div>
+        </div>
+        <div class="panel danger-zone">
+          <h3>Zurücksetzen</h3>
+          <button id="resetProgress" class="danger">Nur Lernstand löschen</button>
+          <button id="resetAll" class="danger">Alles auf Ausgangsstand setzen</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="wordDialog">
+    <form id="wordForm" method="dialog">
+      <div class="dialog-head"><h2 id="dialogTitle">Vokabel</h2><button id="closeDialog" class="icon-btn" value="cancel" formnovalidate>×</button></div>
+      <input id="editId" type="hidden">
+      <label>Russisch<input id="editRu" required autocomplete="off"></label>
+      <label>Deutsch<input id="editDe" required autocomplete="off"></label>
+      <label>Weitere akzeptierte deutsche Antworten<input id="editAltDe" placeholder="mit Semikolon trennen"></label>
+      <label>Weitere akzeptierte russische Antworten<input id="editAltRu" placeholder="mit Semikolon trennen"></label>
+      <div class="two-col">
+        <label>Wortart<select id="editType"><option value="other">Sonstiges</option><option value="noun">Substantiv</option><option value="verb">Verb</option><option value="adjective">Adjektiv</option><option value="adverb">Adverb</option><option value="pronoun">Pronomen</option><option value="phrase">Wendung</option></select></label>
+        <label>Thema<input id="editTopic" placeholder="z. B. Bewegung"></label>
+      </div>
+      <label>Hinweis / Grammatik<input id="editNote" placeholder="optional"></label>
+      <label>Formen nach sicherem Infinitiv<input id="editForms" placeholder="z. B. иду = ich gehe; идёт = er/sie geht"></label>
+      <div class="dialog-actions"><button id="deleteWord" class="danger hidden" type="button">Löschen</button><span></span><button class="secondary" value="cancel" formnovalidate>Abbrechen</button><button class="primary" id="saveWord" value="default">Speichern</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
