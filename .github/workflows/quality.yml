@@ -22,7 +22,9 @@ jobs:
           node --check forms-voice.js
           node --check update-helper.js
           node --check exercise-packages.js
+          node --check standard-pack.js
           node --check service-worker.js
+          python3 -m py_compile scripts/build_standard_vocab.py
       - name: Pflichtdateien prüfen
         run: |
           test -s index.html
@@ -35,6 +37,8 @@ jobs:
           test -s forms-voice.js
           test -s update-helper.js
           test -s exercise-packages.js
+          test -s standard-pack.js
+          test -s scripts/build_standard_vocab.py
           grep -q 'id="learnCard"' index.html
           grep -q 'id="discardCurrent"' index.html
           grep -q 'id="installApp"' index.html
@@ -44,4 +48,6 @@ jobs:
           grep -q 'forms-voice.js' index.html
           grep -q 'update-helper.js' index.html
           grep -q 'exercise-packages.js' index.html
+          grep -q 'standard-a1a2-data.js' index.html
+          grep -q 'standard-pack.js' index.html
           grep -q 'DEFAULT_VOCABULARY' data.js
