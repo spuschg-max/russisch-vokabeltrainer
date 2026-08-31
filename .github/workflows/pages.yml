@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Freien A1/A2-Standardwortschatz erzeugen
+        run: python3 scripts/build_standard_vocab.py
       - name: Pages konfigurieren
         uses: actions/configure-pages@v5
         with:
