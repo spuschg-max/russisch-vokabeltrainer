@@ -44,8 +44,9 @@ function addOrUpdatePack(store,current,pack){
     return true;
   }
   const ex=store.exercises[id],old=ex.state||stateFor([],current),validIds=new Set(words.map(w=>w.id));
+  const extras=(Array.isArray(old.words)?old.words:[]).filter(w=>w?.id&&!String(w.id).startsWith(pack.idPrefix)&&!validIds.has(w.id));
   ex.name=meta.name||ex.name;ex.description=meta.description||ex.description;ex.sourceId=pack.sourceId;
-  ex.state={...old,words:clone(words),progress:old.progress||{},settings:old.settings||clone(current?.settings||{}),daily:old.daily||{},streak:old.streak||{current:0,best:0,lastDate:null},deletedDefaultIds:(window.DEFAULT_VOCABULARY||[]).map(w=>w.id),formProgress:old.formProgress||{},formDaily:old.formDaily||{}};
+  ex.state={...old,words:[...clone(words),...clone(extras)],progress:old.progress||{},settings:old.settings||clone(current?.settings||{}),daily:old.daily||{},streak:old.streak||{current:0,best:0,lastDate:null},deletedDefaultIds:(window.DEFAULT_VOCABULARY||[]).map(w=>w.id),formProgress:old.formProgress||{},formDaily:old.formDaily||{}};
   for(const pid of Object.keys(ex.state.progress))if(pid.startsWith(pack.idPrefix)&&!validIds.has(pid))delete ex.state.progress[pid];
   if(store.activeId===id)localStorage.setItem(STORAGE_KEY,JSON.stringify(clone(ex.state)));
   return true;
