@@ -49,5 +49,7 @@ jobs:
           grep -q 'update-helper.js' index.html
           grep -q 'exercise-packages.js' index.html
           grep -q 'standard-a1a2-data.js' index.html
+          grep -q 'standard-b1-data.js' index.html
           grep -q 'standard-pack.js' index.html
+          grep -q 'SMARTool_data_B1.csv' scripts/build_standard_vocab.py
           grep -q 'DEFAULT_VOCABULARY' data.js
