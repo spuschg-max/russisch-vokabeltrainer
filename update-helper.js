@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.08.31.14';
+const BUILD='2026.08.31.15';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
@@ -15,14 +15,13 @@ async function checkForUpdate(force=false){
   try{const reg=await navigator.serviceWorker.ready;await reg.update();}catch(e){}
 }
 function loadScript(src,key){
-  if(document.querySelector(`script[data-${key}]`))return;
-  const s=document.createElement('script');s.src=src+'?v='+BUILD;s.dataset[key]='1';document.body.appendChild(s);
+  const existing=document.querySelector(`script[data-helper="${key}"]`);if(existing)return Promise.resolve();
+  return new Promise(resolve=>{const s=document.createElement('script');s.src=src+'?v='+BUILD;s.dataset.helper=key;s.async=false;s.onload=resolve;s.onerror=resolve;document.body.appendChild(s);});
 }
-function loadHelpers(){
-  loadScript('import-code.js','importCode');
-  loadScript('mic-recovery.js','micRecovery');
-  loadScript('feedback-recovery.js','feedbackRecovery');
-  loadScript('audio-toggle.js','audioToggle');
+async function loadHelpers(){
+  loadScript('import-code.js','import-code');
+  await loadScript('audio-toggle.js','audio-toggle');
+  await loadScript('stable-voice.js','stable-voice');
 }
 function installUpdateHooks(){
   showVersion();loadHelpers();checkForUpdate(true);
