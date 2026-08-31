@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Russisch Vokabeltrainer">
+  <rect width="512" height="512" rx="112" fill="#182033"/>
+  <circle cx="256" cy="236" r="170" fill="#f6f7f9"/>
+  <text x="256" y="300" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="225" font-weight="700" fill="#182033">Я</text>
+  <text x="256" y="372" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="700" letter-spacing="6" fill="#68707f">RU</text>
+  <rect y="470" width="512" height="14" fill="#ffffff"/>
+  <rect y="484" width="512" height="14" fill="#375ba0"/>
+  <rect y="498" width="512" height="14" fill="#c23237"/>
+</svg>
