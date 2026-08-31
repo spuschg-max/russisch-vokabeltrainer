@@ -1,0 +1,11 @@
+{
+  "name":"Russisch-Vokabeltrainer",
+  "short_name":"Russisch",
+  "description":"Persönlicher Russisch-Deutsch-Vokabeltrainer mit Wiederholsystem",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "background_color":"#eef1f5",
+  "theme_color":"#182033",
+  "lang":"de"
+}
