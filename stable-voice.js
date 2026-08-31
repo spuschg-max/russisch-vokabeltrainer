@@ -11,6 +11,7 @@ let cardTranscript='';
 let silenceTimer=null;
 let restartTimer=null;
 let advanceTimer=null;
+let speechWatchdog=null;
 let cardSerial=0;
 let submittedSerial=-1;
 let handledResultSerial=-1;
@@ -28,8 +29,29 @@ function promptLang(){return ($('#promptLabel')?.textContent||'').trim()==='Russ
 function setStatus(text,on=false){const s=$('#micStatus');if(!s)return;s.textContent=text||'';s.classList.toggle('listening',!!on);}
 function setMicButton(active){const b=$('#micButton');if(!b)return;b.textContent=active?'●':'🎙';b.disabled=false;b.setAttribute('aria-pressed',active?'true':'false');}
 function clearSpeechTimer(){clearTimeout(silenceTimer);silenceTimer=null;}
-function cancelSpeech(){speaking=false;try{if('speechSynthesis'in window)speechSynthesis.cancel()}catch(e){}}
-function speak(text,lang){return new Promise(resolve=>{if(!text||muted()||!('speechSynthesis'in window)){resolve();return}cancelSpeech();const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=lang.startsWith('ru')?.86:.94;speaking=true;let done=false;const finish=()=>{if(done)return;done=true;speaking=false;resolve()};u.onend=finish;u.onerror=finish;try{speechSynthesis.speak(u)}catch(e){finish()}setTimeout(finish,7000);});}
+function cancelSpeech(){clearTimeout(speechWatchdog);speechWatchdog=null;speaking=false;try{if('speechSynthesis'in window)speechSynthesis.cancel()}catch(e){}}
+function pickVoice(lang){
+  if(!('speechSynthesis'in window))return null;
+  const voices=speechSynthesis.getVoices?.()||[];
+  const base=String(lang||'').toLowerCase().slice(0,2);
+  return voices.find(v=>String(v.lang||'').toLowerCase()===String(lang||'').toLowerCase())||voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base))||null;
+}
+function speakNow(text,lang){
+  if(!text||muted()||!('speechSynthesis'in window))return false;
+  cancelSpeech();
+  try{speechSynthesis.resume()}catch(e){}
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang=lang;
+  u.rate=lang.startsWith('ru')?.68:.82;
+  u.pitch=1;
+  const voice=pickVoice(lang);if(voice)u.voice=voice;
+  u.onstart=()=>{speaking=true;};
+  const finish=()=>{speaking=false;clearTimeout(speechWatchdog);speechWatchdog=null;if(answerReady()&&prefs.autoMic)setStatus('Ich höre …',recognitionRunning||recognitionStarting);};
+  u.onend=finish;u.onerror=finish;
+  try{speechSynthesis.speak(u)}catch(e){finish();return false;}
+  speechWatchdog=setTimeout(()=>{speaking=false;speechWatchdog=null;if(answerReady()&&prefs.autoMic)setStatus('Ich höre …',recognitionRunning||recognitionStarting);},Math.min(5200,Math.max(1800,900+String(text).length*85)));
+  return true;
+}
 function updateToggle(){const b=$('#voiceQuickToggle');if(b){b.textContent=prefs.autoMic?'🎙 Mikrofon: AN':'🎙 Mikrofon: AUS';b.setAttribute('aria-pressed',prefs.autoMic?'true':'false')}const cb=$('#stableAutoMicSetting');if(cb)cb.checked=prefs.autoMic;}
 
 function stopRecognition(permanent=false){
@@ -39,7 +61,7 @@ function stopRecognition(permanent=false){
   if(r){try{r.abort()}catch(e){}}
   setMicButton(false);
 }
-function scheduleRecognitionRestart(delay=300){
+function scheduleRecognitionRestart(delay=260){
   clearTimeout(restartTimer);
   if(!prefs.autoMic||userStopped||document.visibilityState==='hidden'||!learnViewActive())return;
   restartTimer=setTimeout(()=>ensureRecognition(false),delay);
@@ -59,7 +81,7 @@ function ensureRecognition(manual=false){
       const piece=(e.results[i][0]?.transcript||'').trim();
       if(!piece)continue;
       cardTranscript=(cardTranscript+' '+piece).trim();changed=true;
-      clearSpeechTimer();silenceTimer=setTimeout(()=>submitVoice(cardSerial),e.results[i].isFinal?420:1050);
+      clearSpeechTimer();silenceTimer=setTimeout(()=>submitVoice(cardSerial),e.results[i].isFinal?420:1000);
     }
     if(changed){const input=$('#answerInput');if(input){input.value=cardTranscript;input.classList.add('voice-recognized');}setStatus('Ich höre …',true);}
   };
@@ -70,7 +92,7 @@ function ensureRecognition(manual=false){
       recognition=null;recognitionRunning=false;recognitionStarting=false;setMicButton(false);setStatus('Mikrofonzugriff ist nicht erlaubt. Bitte einmal auf das Mikrofon tippen.');return;
     }
     if(code==='aborted')return;
-    if(code==='no-speech'){setStatus(acceptingAnswer?'Ich höre weiter …':'');return;}
+    if(code==='no-speech'){setStatus(answerReady()&&prefs.autoMic?'Ich höre …':'',answerReady()&&prefs.autoMic);return;}
     setStatus('Spracherkennung wurde kurz unterbrochen – ich verbinde neu …');
   };
   r.onend=()=>{
@@ -83,7 +105,7 @@ function ensureRecognition(manual=false){
 function setAutoMic(v){
   prefs.autoMic=!!v;savePrefs();updateToggle();
   if(!prefs.autoMic){stopRecognition(true);setStatus('Mikrofon-Automatik ausgeschaltet.');}
-  else{userStopped=false;ensureRecognition(false);if(answerReady()&&!speaking){acceptingAnswer=true;setStatus('Ich höre …',true);}}
+  else{userStopped=false;acceptingAnswer=answerReady();ensureRecognition(false);if(answerReady())setStatus('Ich höre …',true);}
 }
 
 function neutralizeOldVoiceAutomation(){
@@ -91,11 +113,11 @@ function neutralizeOldVoiceAutomation(){
   const delay=$('#advanceDelay');if(delay){const l=delay.closest('label');if(l)l.style.display='none';}
   const prompt=$('#speakPromptSetting');if(prompt){prompt.checked=false;prompt.dispatchEvent(new Event('change',{bubbles:true}));const l=prompt.closest('label');if(l)l.style.display='none';}
   const corr=$('#speakCorrectionSetting');if(corr){corr.checked=false;corr.dispatchEvent(new Event('change',{bubbles:true}));const l=corr.closest('label');if(l)l.style.display='none';}
-  const panel=$('#voiceSettingsPanel');if(panel){const p=panel.querySelector('p');if(p)p.textContent='Der Sprachmodus hält das Mikrofon während der Lernrunde möglichst dauerhaft aktiv. Während die App selbst spricht, wird die Erkennung kurz ignoriert und danach sofort wieder für deine Antwort freigegeben.';if(!$('#stableAutoMicSetting')){const label=document.createElement('label');label.className='check-row';label.innerHTML='<input id="stableAutoMicSetting" type="checkbox"> Mikrofon während der Lernrunde automatisch aktiv halten';const note=panel.querySelector('.voice-note');if(note)note.insertAdjacentElement('beforebegin',label);else panel.appendChild(label);label.querySelector('input').addEventListener('change',e=>setAutoMic(e.target.checked));}}
+  const panel=$('#voiceSettingsPanel');if(panel){const p=panel.querySelector('p');if(p)p.textContent='Neue Vokabeln werden automatisch und langsam vorgelesen. Das Mikrofon bleibt gleichzeitig bereit; die Sprachausgabe darf den Lernablauf nicht verzögern.';if(!$('#stableAutoMicSetting')){const label=document.createElement('label');label.className='check-row';label.innerHTML='<input id="stableAutoMicSetting" type="checkbox"> Mikrofon während der Lernrunde automatisch aktiv halten';const note=panel.querySelector('.voice-note');if(note)note.insertAdjacentElement('beforebegin',label);else panel.appendChild(label);label.querySelector('input').addEventListener('change',e=>setAutoMic(e.target.checked));}}
 }
 function replaceControls(){
-  const oldMic=$('#micButton');if(oldMic&&!oldMic.dataset.stableVoice){const mic=oldMic.cloneNode(true);mic.dataset.stableVoice='2';oldMic.replaceWith(mic);mic.addEventListener('click',()=>{if(!prefs.autoMic)setAutoMic(true);userStopped=false;if(recognitionRunning){acceptingAnswer=answerReady()&&!speaking;setStatus(acceptingAnswer?'Ich höre …':'Mikrofon ist bereit.',acceptingAnswer);}else ensureRecognition(true);});}
-  const oldToggle=$('#voiceQuickToggle');if(oldToggle&&!oldToggle.dataset.stableVoice){const b=oldToggle.cloneNode(true);b.dataset.stableVoice='2';oldToggle.replaceWith(b);b.addEventListener('click',()=>setAutoMic(!prefs.autoMic));}
+  const oldMic=$('#micButton');if(oldMic&&!oldMic.dataset.stableVoice){const mic=oldMic.cloneNode(true);mic.dataset.stableVoice='3';oldMic.replaceWith(mic);mic.addEventListener('click',()=>{if(!prefs.autoMic)setAutoMic(true);userStopped=false;acceptingAnswer=answerReady();if(recognitionRunning){setStatus(acceptingAnswer?'Ich höre …':'Mikrofon ist bereit.',acceptingAnswer);}else ensureRecognition(true);});}
+  const oldToggle=$('#voiceQuickToggle');if(oldToggle&&!oldToggle.dataset.stableVoice){const b=oldToggle.cloneNode(true);b.dataset.stableVoice='3';oldToggle.replaceWith(b);b.addEventListener('click',()=>setAutoMic(!prefs.autoMic));}
   updateToggle();
 }
 function submitVoice(serial){
@@ -107,29 +129,29 @@ function resultKind(){const m=$('#resultMark');if(m?.classList.contains('correct
 function ratingFor(k){return k==='correct'?'good':k==='almost'?'hard':'again';}
 function showStableFeedback(kind){let o=$('#stableFeedback');if(!o){o=document.createElement('div');o.id='stableFeedback';o.innerHTML='<div class="stable-feedback-card"><div class="stable-feedback-symbol"></div><div class="stable-feedback-label"></div></div>';document.body.appendChild(o);}o.className='stable-feedback '+kind+' show';o.querySelector('.stable-feedback-symbol').textContent=kind==='correct'?'✓':kind==='almost'?'○':'✕';o.querySelector('.stable-feedback-label').textContent=kind==='correct'?'Richtig':kind==='almost'?'Fast richtig':'Falsch';}
 function hideStableFeedback(){const o=$('#stableFeedback');if(o)o.classList.remove('show');}
-async function handleVisibleResult(){
+function handleVisibleResult(){
   if($('#resultPanel')?.classList.contains('hidden')||handledResultSerial===cardSerial)return;
-  handledResultSerial=cardSerial;clearTimeout(advanceTimer);acceptingAnswer=false;const serial=cardSerial,kind=resultKind();showStableFeedback(kind);setStatus('Mikrofon bleibt für die nächste Vokabel bereit.',recognitionRunning);
-  if(kind!=='correct'){await new Promise(r=>setTimeout(r,300));if(serial===cardSerial)await speak($('#solutionText')?.textContent||'',answerLang());}
-  advanceTimer=setTimeout(()=>{if(serial!==cardSerial||$('#resultPanel')?.classList.contains('hidden'))return;hideStableFeedback();const btn=$(`.rating[data-rating="${ratingFor(kind)}"]`);if(btn)btn.click();},2300);
+  handledResultSerial=cardSerial;clearTimeout(advanceTimer);acceptingAnswer=false;const serial=cardSerial,kind=resultKind();showStableFeedback(kind);setStatus('Mikrofon bleibt für die nächste Vokabel bereit.',recognitionRunning||recognitionStarting);
+  if(kind!=='correct')setTimeout(()=>{if(serial===cardSerial)speakNow($('#solutionText')?.textContent||'',answerLang());},260);
+  advanceTimer=setTimeout(()=>{if(serial!==cardSerial||$('#resultPanel')?.classList.contains('hidden'))return;hideStableFeedback();const btn=$(`.rating[data-rating="${ratingFor(kind)}"]`);if(btn)btn.click();},2400);
 }
-async function startCardFlow(read=true){
-  clearTimeout(advanceTimer);hideStableFeedback();clearSpeechTimer();submittedSerial=-1;handledResultSerial=-1;cardTranscript='';acceptingAnswer=false;
+function startCardFlow(read=true){
+  clearTimeout(advanceTimer);hideStableFeedback();clearSpeechTimer();submittedSerial=-1;handledResultSerial=-1;cardTranscript='';
   const input=$('#answerInput');if(input){input.classList.remove('voice-recognized');input.value='';}
   if(!answerReady())return;const serial=cardSerial;
-  if(prefs.autoMic&&!recognitionRunning&&!recognitionStarting)ensureRecognition(false);
-  if(read){setStatus(muted()?'Mikrofon ist bereit.':'Vokabel wird vorgelesen …',recognitionRunning);await speak($('#promptText')?.textContent?.trim()||'',promptLang());if(serial!==cardSerial)return;await new Promise(r=>setTimeout(r,260));}
-  if(prefs.autoMic){if(!recognitionRunning&&!recognitionStarting)ensureRecognition(false);acceptingAnswer=true;setStatus('Ich höre …',true);}else setStatus('Mikrofon-Automatik ist aus.');
+  acceptingAnswer=!!prefs.autoMic;
+  if(prefs.autoMic){if(!recognitionRunning&&!recognitionStarting)ensureRecognition(false);setStatus('Ich höre …',true);}else setStatus('Mikrofon-Automatik ist aus.');
+  if(read&&!muted())setTimeout(()=>{if(serial===cardSerial&&answerReady())speakNow($('#promptText')?.textContent?.trim()||'',promptLang());},20);
 }
 function installObservers(){
-  const prompt=$('#promptText');if(prompt)new MutationObserver(()=>{cardSerial++;setTimeout(()=>startCardFlow(true),180);}).observe(prompt,{childList:true,characterData:true,subtree:true});
-  const panel=$('#resultPanel');if(panel)new MutationObserver(()=>{if(panel.classList.contains('hidden'))return;setTimeout(handleVisibleResult,90);}).observe(panel,{attributes:true,attributeFilter:['class']});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){acceptingAnswer=false;cancelSpeech();clearTimeout(advanceTimer);stopRecognition(false);}else if(learnViewActive()){userStopped=false;ensureRecognition(false);if(answerReady())setTimeout(()=>startCardFlow(true),350);}});
+  const prompt=$('#promptText');if(prompt)new MutationObserver(()=>{cardSerial++;startCardFlow(true);}).observe(prompt,{childList:true,characterData:true,subtree:true});
+  const panel=$('#resultPanel');if(panel)new MutationObserver(()=>{if(panel.classList.contains('hidden'))return;setTimeout(handleVisibleResult,70);}).observe(panel,{attributes:true,attributeFilter:['class']});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){acceptingAnswer=false;cancelSpeech();clearTimeout(advanceTimer);stopRecognition(false);}else if(learnViewActive()){userStopped=false;if(prefs.autoMic)ensureRecognition(false);if(answerReady())setTimeout(()=>startCardFlow(true),120);}});
   document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{setTimeout(()=>{if(!learnViewActive()){acceptingAnswer=false;cancelSpeech();clearTimeout(advanceTimer);hideStableFeedback();stopRecognition(false);}else if(prefs.autoMic){userStopped=false;ensureRecognition(false);}},20);}));
 }
 function injectStyles(){if($('#stableVoiceStyles'))return;const s=document.createElement('style');s.id='stableVoiceStyles';s.textContent=`
   .manual-next{display:none!important}#feedbackOverlay{display:none!important}.stable-feedback{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;pointer-events:none;background:rgba(255,255,255,.12);opacity:0;transition:opacity .12s}.stable-feedback.show{opacity:1}.stable-feedback-card{width:min(78vw,360px);aspect-ratio:1/1;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:9px solid currentColor;background:rgba(255,255,255,.96);box-shadow:0 22px 65px rgba(0,0,0,.22)}.stable-feedback-symbol{font-size:clamp(100px,31vw,190px);font-weight:900;line-height:.8}.stable-feedback-label{font-size:clamp(24px,7vw,38px);font-weight:900;margin-top:22px}.stable-feedback.correct{color:#2f8b58}.stable-feedback.almost{color:#d18412}.stable-feedback.wrong{color:#b63b3b}body.dark .stable-feedback-card{background:rgba(23,29,40,.97)}
 `;document.head.appendChild(s);}
-function install(){neutralizeOldVoiceAutomation();replaceControls();injectStyles();installObservers();cardSerial++;userStopped=false;if(prefs.autoMic)ensureRecognition(false);setTimeout(()=>startCardFlow(true),650);}
-setTimeout(install,850);
+function install(){neutralizeOldVoiceAutomation();replaceControls();injectStyles();installObservers();cardSerial++;userStopped=false;if(prefs.autoMic)ensureRecognition(false);setTimeout(()=>startCardFlow(true),420);}
+setTimeout(install,700);
 })();
