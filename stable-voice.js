@@ -7,6 +7,7 @@ let prefs=loadPrefs();
 let recognition=null;
 let recognitionRunning=false;
 let recognitionStarting=false;
+let recognitionLang='';
 let cardTranscript='';
 let silenceTimer=null;
 let restartTimer=null;
@@ -24,8 +25,10 @@ function savePrefs(){localStorage.setItem(PREF_KEY,JSON.stringify(prefs));}
 function muted(){try{return !!JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}').muted}catch(e){return false}}
 function learnViewActive(){return !!$('#view-learn')?.classList.contains('active');}
 function answerReady(){return learnViewActive()&&!!$('#resultPanel')?.classList.contains('hidden');}
-function answerLang(){return ($('#answerLabel')?.textContent||'').trim()==='Russisch'?'ru-RU':'de-DE';}
-function promptLang(){return ($('#promptLabel')?.textContent||'').trim()==='Russisch'?'ru-RU':'de-DE';}
+function answerLang(){return /russisch/i.test($('#answerLabel')?.textContent||'')?'ru-RU':'de-DE';}
+function answerLanguageName(){return answerLang()==='ru-RU'?'Russisch':'Deutsch';}
+function promptLang(){return /russisch/i.test($('#promptLabel')?.textContent||'')?'ru-RU':'de-DE';}
+function listeningStatus(){return `Ich höre ${answerLanguageName()} …`;}
 function setStatus(text,on=false){const s=$('#micStatus');if(!s)return;s.textContent=text||'';s.classList.toggle('listening',!!on);}
 function setMicButton(active){const b=$('#micButton');if(!b)return;b.textContent=active?'●':'🎙';b.disabled=false;b.setAttribute('aria-pressed',active?'true':'false');}
 function clearSpeechTimer(){clearTimeout(silenceTimer);silenceTimer=null;}
@@ -46,10 +49,10 @@ function speakNow(text,lang){
   u.pitch=1;
   const voice=pickVoice(lang);if(voice)u.voice=voice;
   u.onstart=()=>{speaking=true;};
-  const finish=()=>{speaking=false;clearTimeout(speechWatchdog);speechWatchdog=null;if(answerReady()&&prefs.autoMic)setStatus('Ich höre …',recognitionRunning||recognitionStarting);};
+  const finish=()=>{speaking=false;clearTimeout(speechWatchdog);speechWatchdog=null;if(answerReady()&&prefs.autoMic)setStatus(listeningStatus(),recognitionRunning||recognitionStarting);};
   u.onend=finish;u.onerror=finish;
   try{speechSynthesis.speak(u)}catch(e){finish();return false;}
-  speechWatchdog=setTimeout(()=>{speaking=false;speechWatchdog=null;if(answerReady()&&prefs.autoMic)setStatus('Ich höre …',recognitionRunning||recognitionStarting);},Math.min(5200,Math.max(1800,900+String(text).length*85)));
+  speechWatchdog=setTimeout(()=>{speaking=false;speechWatchdog=null;if(answerReady()&&prefs.autoMic)setStatus(listeningStatus(),recognitionRunning||recognitionStarting);},Math.min(5200,Math.max(1800,900+String(text).length*85)));
   return true;
 }
 function updateToggle(){const b=$('#voiceQuickToggle');if(b){b.textContent=prefs.autoMic?'🎙 Mikrofon: AN':'🎙 Mikrofon: AUS';b.setAttribute('aria-pressed',prefs.autoMic?'true':'false')}const cb=$('#stableAutoMicSetting');if(cb)cb.checked=prefs.autoMic;}
@@ -57,7 +60,7 @@ function updateToggle(){const b=$('#voiceQuickToggle');if(b){b.textContent=prefs
 function stopRecognition(permanent=false){
   clearSpeechTimer();clearTimeout(restartTimer);restartTimer=null;recognitionStarting=false;acceptingAnswer=false;
   if(permanent)userStopped=true;
-  const r=recognition;recognition=null;recognitionRunning=false;
+  const r=recognition;recognition=null;recognitionRunning=false;recognitionLang='';
   if(r){try{r.abort()}catch(e){}}
   setMicButton(false);
 }
@@ -68,12 +71,19 @@ function scheduleRecognitionRestart(delay=260){
 }
 function ensureRecognition(manual=false){
   if(!learnViewActive())return false;
-  if(recognitionRunning||recognitionStarting){setMicButton(true);return true;}
+  const targetLang=answerLang();
+  if((recognitionRunning||recognitionStarting)&&recognitionLang===targetLang){setMicButton(true);return true;}
+  if((recognitionRunning||recognitionStarting)&&recognitionLang!==targetLang){
+    clearTimeout(restartTimer);restartTimer=null;
+    const old=recognition;recognition=null;recognitionRunning=false;recognitionStarting=false;recognitionLang='';
+    if(old){try{old.abort()}catch(e){}}
+    setMicButton(false);
+  }
   const C=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!C){setStatus('Spracherkennung wird von diesem Gerät nicht unterstützt.');return false;}
-  clearTimeout(restartTimer);restartTimer=null;userStopped=false;recognitionStarting=true;
-  const r=new C();recognition=r;r.lang=answerLang();r.interimResults=true;r.continuous=true;r.maxAlternatives=3;
-  r.onstart=()=>{if(recognition!==r)return;recognitionStarting=false;recognitionRunning=true;setMicButton(true);if(acceptingAnswer)setStatus('Ich höre …',true);};
+  clearTimeout(restartTimer);restartTimer=null;userStopped=false;recognitionStarting=true;recognitionLang=targetLang;
+  const r=new C();recognition=r;r.lang=targetLang;r.interimResults=true;r.continuous=true;r.maxAlternatives=3;
+  r.onstart=()=>{if(recognition!==r)return;recognitionStarting=false;recognitionRunning=true;setMicButton(true);if(acceptingAnswer)setStatus(listeningStatus(),true);};
   r.onresult=e=>{
     if(recognition!==r||!acceptingAnswer||speaking||!answerReady()||submittedSerial===cardSerial)return;
     let changed=false;
@@ -83,29 +93,29 @@ function ensureRecognition(manual=false){
       cardTranscript=(cardTranscript+' '+piece).trim();changed=true;
       clearSpeechTimer();silenceTimer=setTimeout(()=>submitVoice(cardSerial),e.results[i].isFinal?420:1000);
     }
-    if(changed){const input=$('#answerInput');if(input){input.value=cardTranscript;input.classList.add('voice-recognized');}setStatus('Ich höre …',true);}
+    if(changed){const input=$('#answerInput');if(input){input.value=cardTranscript;input.classList.add('voice-recognized');}setStatus(listeningStatus(),true);}
   };
   r.onerror=e=>{
     if(recognition!==r)return;
     const code=e?.error||'';
     if(code==='not-allowed'||code==='service-not-allowed'){
-      recognition=null;recognitionRunning=false;recognitionStarting=false;setMicButton(false);setStatus('Mikrofonzugriff ist nicht erlaubt. Bitte einmal auf das Mikrofon tippen.');return;
+      recognition=null;recognitionRunning=false;recognitionStarting=false;recognitionLang='';setMicButton(false);setStatus('Mikrofonzugriff ist nicht erlaubt. Bitte einmal auf das Mikrofon tippen.');return;
     }
     if(code==='aborted')return;
-    if(code==='no-speech'){setStatus(answerReady()&&prefs.autoMic?'Ich höre …':'',answerReady()&&prefs.autoMic);return;}
+    if(code==='no-speech'){setStatus(answerReady()&&prefs.autoMic?listeningStatus():'',answerReady()&&prefs.autoMic);return;}
     setStatus('Spracherkennung wurde kurz unterbrochen – ich verbinde neu …');
   };
   r.onend=()=>{
-    if(recognition===r)recognition=null;
-    recognitionRunning=false;recognitionStarting=false;setMicButton(false);
+    if(recognition!==r)return;
+    recognition=null;recognitionRunning=false;recognitionStarting=false;recognitionLang='';setMicButton(false);
     if(prefs.autoMic&&!userStopped&&document.visibilityState!=='hidden'&&learnViewActive())scheduleRecognitionRestart(220);
   };
-  try{r.start();return true}catch(e){recognition=null;recognitionRunning=false;recognitionStarting=false;setMicButton(false);if(manual)setStatus('Mikrofon konnte nicht gestartet werden.');else setStatus('Tippe einmal auf das Mikrofon, um den Sprachmodus zu starten.');return false;}
+  try{r.start();return true}catch(e){recognition=null;recognitionRunning=false;recognitionStarting=false;recognitionLang='';setMicButton(false);if(manual)setStatus('Mikrofon konnte nicht gestartet werden.');else setStatus('Tippe einmal auf das Mikrofon, um den Sprachmodus zu starten.');return false;}
 }
 function setAutoMic(v){
   prefs.autoMic=!!v;savePrefs();updateToggle();
   if(!prefs.autoMic){stopRecognition(true);setStatus('Mikrofon-Automatik ausgeschaltet.');}
-  else{userStopped=false;acceptingAnswer=answerReady();ensureRecognition(false);if(answerReady())setStatus('Ich höre …',true);}
+  else{userStopped=false;acceptingAnswer=answerReady();ensureRecognition(false);if(answerReady())setStatus(listeningStatus(),true);}
 }
 
 function neutralizeOldVoiceAutomation(){
@@ -113,11 +123,11 @@ function neutralizeOldVoiceAutomation(){
   const delay=$('#advanceDelay');if(delay){const l=delay.closest('label');if(l)l.style.display='none';}
   const prompt=$('#speakPromptSetting');if(prompt){prompt.checked=false;prompt.dispatchEvent(new Event('change',{bubbles:true}));const l=prompt.closest('label');if(l)l.style.display='none';}
   const corr=$('#speakCorrectionSetting');if(corr){corr.checked=false;corr.dispatchEvent(new Event('change',{bubbles:true}));const l=corr.closest('label');if(l)l.style.display='none';}
-  const panel=$('#voiceSettingsPanel');if(panel){const p=panel.querySelector('p');if(p)p.textContent='Neue Vokabeln werden automatisch und langsam vorgelesen. Das Mikrofon bleibt gleichzeitig bereit; die Sprachausgabe darf den Lernablauf nicht verzögern.';if(!$('#stableAutoMicSetting')){const label=document.createElement('label');label.className='check-row';label.innerHTML='<input id="stableAutoMicSetting" type="checkbox"> Mikrofon während der Lernrunde automatisch aktiv halten';const note=panel.querySelector('.voice-note');if(note)note.insertAdjacentElement('beforebegin',label);else panel.appendChild(label);label.querySelector('input').addEventListener('change',e=>setAutoMic(e.target.checked));}}
+  const panel=$('#voiceSettingsPanel');if(panel){const p=panel.querySelector('p');if(p)p.textContent='Neue Vokabeln werden automatisch und langsam vorgelesen. Das Mikrofon bleibt gleichzeitig bereit und wechselt passend zur erwarteten Antwort automatisch zwischen Russisch und Deutsch.';if(!$('#stableAutoMicSetting')){const label=document.createElement('label');label.className='check-row';label.innerHTML='<input id="stableAutoMicSetting" type="checkbox"> Mikrofon während der Lernrunde automatisch aktiv halten';const note=panel.querySelector('.voice-note');if(note)note.insertAdjacentElement('beforebegin',label);else panel.appendChild(label);label.querySelector('input').addEventListener('change',e=>setAutoMic(e.target.checked));}}
 }
 function replaceControls(){
-  const oldMic=$('#micButton');if(oldMic&&!oldMic.dataset.stableVoice){const mic=oldMic.cloneNode(true);mic.dataset.stableVoice='3';oldMic.replaceWith(mic);mic.addEventListener('click',()=>{if(!prefs.autoMic)setAutoMic(true);userStopped=false;acceptingAnswer=answerReady();if(recognitionRunning){setStatus(acceptingAnswer?'Ich höre …':'Mikrofon ist bereit.',acceptingAnswer);}else ensureRecognition(true);});}
-  const oldToggle=$('#voiceQuickToggle');if(oldToggle&&!oldToggle.dataset.stableVoice){const b=oldToggle.cloneNode(true);b.dataset.stableVoice='3';oldToggle.replaceWith(b);b.addEventListener('click',()=>setAutoMic(!prefs.autoMic));}
+  const oldMic=$('#micButton');if(oldMic&&!oldMic.dataset.stableVoice){const mic=oldMic.cloneNode(true);mic.dataset.stableVoice='4';oldMic.replaceWith(mic);mic.addEventListener('click',()=>{if(!prefs.autoMic)setAutoMic(true);userStopped=false;acceptingAnswer=answerReady();if(recognitionRunning&&recognitionLang===answerLang()){setStatus(acceptingAnswer?listeningStatus():'Mikrofon ist bereit.',acceptingAnswer);}else ensureRecognition(true);});}
+  const oldToggle=$('#voiceQuickToggle');if(oldToggle&&!oldToggle.dataset.stableVoice){const b=oldToggle.cloneNode(true);b.dataset.stableVoice='4';oldToggle.replaceWith(b);b.addEventListener('click',()=>setAutoMic(!prefs.autoMic));}
   updateToggle();
 }
 function submitVoice(serial){
@@ -140,7 +150,7 @@ function startCardFlow(read=true){
   const input=$('#answerInput');if(input){input.classList.remove('voice-recognized');input.value='';}
   if(!answerReady())return;const serial=cardSerial;
   acceptingAnswer=!!prefs.autoMic;
-  if(prefs.autoMic){if(!recognitionRunning&&!recognitionStarting)ensureRecognition(false);setStatus('Ich höre …',true);}else setStatus('Mikrofon-Automatik ist aus.');
+  if(prefs.autoMic){ensureRecognition(false);setStatus(listeningStatus(),true);}else setStatus('Mikrofon-Automatik ist aus.');
   if(read&&!muted())setTimeout(()=>{if(serial===cardSerial&&answerReady())speakNow($('#promptText')?.textContent?.trim()||'',promptLang());},20);
 }
 function installObservers(){
