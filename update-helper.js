@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.01.28';
+const BUILD='2026.09.01.29';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
@@ -26,6 +26,7 @@ async function loadHelpers(){
   await loadScript('audio-toggle.js','audio-toggle');
   await loadScript('speech-unlock.js','speech-unlock');
   await loadScript('speech-tolerance.js','speech-tolerance');
+  await loadScript('speech-segmentation.js','speech-segmentation');
   await loadScript('voice-controller.js','voice-controller');
 }
 function installUpdateHooks(){
