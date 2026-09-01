@@ -37,6 +37,7 @@ function setStatus(text,on=false){const s=$('#micStatus');if(!s)return;s.textCon
 function setMicButton(on){const b=$('#micButton');if(!b)return;b.textContent=on?'●':'🎙';b.disabled=false;b.setAttribute('aria-pressed',on?'true':'false');}
 function clearSubmit(){clearTimeout(submitTimer);submitTimer=null;}
 function normWord(w){return String(w||'').toLocaleLowerCase().replace(/^[\s.,!?;:„“"'()\[\]{}…-]+|[\s.,!?;:„“"'()\[\]{}…-]+$/g,'');}
+function russianCore(s){const text=String(s||'').trim();const m=text.match(/^(.+?)\s*\+\s*(?:Dat\.?|Dativ|Akk\.?|Akkusativ|Gen\.?|Genitiv|Instr\.?|Instrumental|Präp\.?|Praep\.?|Präpositiv|Praepositiv|Lok\.?|Lokativ)\b/i);return (m?m[1]:text).trim();}
 function cleanTranscript(text){
   let words=String(text||'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean);
   if(!words.length)return'';
@@ -70,7 +71,8 @@ function markSpeechEnd(){ownSpeech=false;window.__rvtAppSpeaking=false;suppressU
 function pickVoice(lang){if(!('speechSynthesis'in window))return null;const voices=speechSynthesis.getVoices?.()||[];const exact=String(lang).toLowerCase(),base=exact.slice(0,2);return voices.find(v=>String(v.lang||'').toLowerCase()===exact)||voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base))||null;}
 function speak(text,lang){
   if(!text||muted()||!('speechSynthesis'in window))return false;
-  const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=lang.startsWith('ru')?.68:.82;u.pitch=1;const voice=pickVoice(lang);if(voice)u.voice=voice;
+  const spoken=lang.startsWith('ru')?russianCore(text):String(text||'');
+  const u=new SpeechSynthesisUtterance(spoken);u.lang=lang;u.rate=lang.startsWith('ru')?.68:.82;u.pitch=1;const voice=pickVoice(lang);if(voice)u.voice=voice;
   let started=false,finished=false;
   const finish=()=>{if(finished)return;finished=true;if(started)markSpeechEnd();};
   u.onstart=()=>{started=true;markSpeechStart();};u.onend=finish;u.onerror=finish;
@@ -123,7 +125,7 @@ function ensureRecognition(manual=false){
     cardTranscript=composeTranscript();
     const input=$('#answerInput');if(input&&cardTranscript){input.value=cardTranscript;input.classList.add('voice-recognized');}
     setStatus(statusListening(),true);
-    if(hasFinal)scheduleSubmit(1700);else{clearSubmit();}
+    if(hasFinal)scheduleSubmit(1700);else clearSubmit();
   };
   r.onspeechend=()=>{if(recognition!==r||!speechDetected||submittedSerial===cardSerial||!answerReady())return;if(cardTranscript.trim())scheduleSubmit(1300);};
   r.onerror=e=>{
@@ -161,6 +163,9 @@ function replaceControls(){
 function submitVoice(serial){
   clearSubmit();if(serial!==cardSerial||submittedSerial===serial||!answerReady()||!speechDetected)return;
   const input=$('#answerInput');const cleaned=cleanTranscript(input?.value||cardTranscript);if(!cleaned)return;
+  if(answerLang()==='ru-RU'&&!/[а-яё]/i.test(cleaned)){
+    resetAnswerCapture(true);acceptingAnswer=true;setStatus('Russisch nicht sicher erkannt – ich höre weiter …',true);return;
+  }
   cardTranscript=cleaned;if(input){input.value=cleaned;input.classList.add('voice-recognized');}
   submittedSerial=serial;acceptingAnswer=false;speechDetected=false;setStatus('Antwort erkannt – wird geprüft …');
   setTimeout(()=>{if(serial===cardSerial&&$('#resultPanel')?.classList.contains('hidden'))$('#checkAnswer')?.click();},100);
