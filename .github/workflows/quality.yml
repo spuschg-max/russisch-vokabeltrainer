@@ -20,6 +20,14 @@ jobs:
           node --check forms.js
           node --check voice-persistence.js
           node --check forms-voice.js
+          node --check audio-toggle.js
+          node --check speech-unlock.js
+          node --check speech-tolerance.js
+          node --check speech-segmentation.js
+          node --check voice-controller.js
+          node --check voice-add.js
+          node --check learning-ui.js
+          node --check motion-hints.js
           node --check update-helper.js
           node --check exercise-packages.js
           node --check standard-pack.js
@@ -35,6 +43,14 @@ jobs:
           test -s forms.js
           test -s voice-persistence.js
           test -s forms-voice.js
+          test -s audio-toggle.js
+          test -s speech-unlock.js
+          test -s speech-tolerance.js
+          test -s speech-segmentation.js
+          test -s voice-controller.js
+          test -s voice-add.js
+          test -s learning-ui.js
+          test -s motion-hints.js
           test -s update-helper.js
           test -s exercise-packages.js
           test -s standard-pack.js
