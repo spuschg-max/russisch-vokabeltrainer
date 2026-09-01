@@ -61,14 +61,14 @@ function registerStudy(){const k=dateKey(),s=state.streak;if(s.lastDate===k)retu
 function wordIndex(id){return state.words.findIndex(w=>w.id===id)}
 function activeLearningWords(){return state.words.filter(w=>{const p=pFor(w.id);return p.active&&!p.postponed})}
 function longReviewWords(){const t=now();return state.words.filter(w=>{const p=pFor(w.id);return p.seen>0&&!p.active&&!p.postponed&&p.reviewStage>0&&p.due<=t}).sort((a,b)=>pFor(a.id).due-pFor(b.id).due||wordIndex(a.id)-wordIndex(b.id))}
-function unseenRegularWords(){return state.words.filter(w=>{const p=pFor(w.id);return p.seen===0&&!p.active&&!p.postponed})}
+function waitingRegularWords(){return state.words.filter(w=>{const p=pFor(w.id);if(p.active||p.postponed||p.reviewStage>0||p.level>=5)return false;return p.seen===0||(p.seen>0&&p.level<5)})}
 function newWords(){return state.words.filter(w=>pFor(w.id).seen===0)}
 function takeFirstPostponed(){
  while(state.postponedIds.length){const id=state.postponedIds[0],w=state.words.find(x=>x.id===id);if(!w){state.postponedIds.shift();continue;}const p=pFor(id);state.postponedIds.shift();p.postponed=false;p.active=true;p.nextTurn=state.sessionTurn;return w;}return null;
 }
 function ensureActiveWindow(){
  const limit=Math.max(1,Math.min(30,Number(state.settings.newLimit||12)));let active=activeLearningWords().length;
- while(active<limit){let w=unseenRegularWords()[0];if(!w)w=takeFirstPostponed();if(!w)break;const p=pFor(w.id);p.active=true;p.postponed=false;p.nextTurn=Math.min(Number.isFinite(Number(p.nextTurn))?Number(p.nextTurn):state.sessionTurn,state.sessionTurn);active++;}
+ while(active<limit){let w=waitingRegularWords()[0];if(!w)w=takeFirstPostponed();if(!w)break;const p=pFor(w.id);p.active=true;p.postponed=false;p.nextTurn=Math.min(Number.isFinite(Number(p.nextTurn))?Number(p.nextTurn):state.sessionTurn,state.sessionTurn);active++;}
 }
 function chooseDirection(p){
  if(state.settings.direction!=='mixed')return state.settings.direction;
@@ -120,15 +120,14 @@ function review(rating){if(!current)return;const p=pFor(current.id),wasNew=p.see
  extraMode=false;ensureActiveWindow();save();current=null;selectNext();renderProgress();}
 function markCurrentKnown(){
  if(!current)return;const p=pFor(current.id),wasNew=p.seen===0;
- setDirValue(p,currentDirection,5);p.seen++;p.correct++;p.lastReview=now();p.lastResult='known';p.postponed=false;state.postponedIds=state.postponedIds.filter(id=>id!==current.id);state.sessionTurn++;
+ setDirValue(p,'ru-de',5);setDirValue(p,'de-ru',5);p.seen++;p.correct++;p.lastReview=now();p.lastResult='known';p.postponed=false;state.postponedIds=state.postponedIds.filter(id=>id!==current.id);state.sessionTurn++;
  const d=today();d.answers++;d.correct++;if(wasNew)d.newIntroduced++;registerStudy();
- if(wordSecure(p)){p.active=false;p.level=5;p.reviewStage=1;p.due=now()+7*DAY;p.nextTurn=state.sessionTurn;toast('Aktuelle Richtung 5/5 – Vokabel in der Wochenwiederholung');}
- else{p.active=true;p.reviewStage=0;p.due=0;p.nextTurn=state.sessionTurn+1;syncLegacyProgress(p);toast('Aktuelle Richtung als 5/5 markiert');}
+ p.active=false;p.level=5;p.reviewStage=1;p.due=now()+7*DAY;p.nextTurn=state.sessionTurn;toast('Vokabel als sicher markiert – Wiederholung in einer Woche');
  save();current=null;ensureActiveWindow();selectNext();renderProgress();
 }
 function levelName(p){if(p.postponed)return'Hinten angestellt';if(!p.seen)return p.active?'Neu · aktiv':'Neu';if(p.active)return`Lernen · ${directionStatus(p)}`;if(p.level>=5)return'Sicher';return'Lernen'}
 function dueText(p){if(p.postponed)return'am Ende der Lektion';if(p.active){const gap=Math.max(0,(p.nextTurn||0)-state.sessionTurn);return gap<=0?'jetzt dran':gap===1?'nach 1 Karte':`nach ${gap} Karten`;}if(!p.seen)return'noch nicht gelernt';const diff=p.due-now();if(diff<=0)return'jetzt fällig';if(diff<60*MIN)return`in ${Math.max(1,Math.round(diff/MIN))} Min.`;if(diff<DAY)return`in ${Math.round(diff/HOUR)} Std.`;return`in ${Math.round(diff/DAY)} Tagen`}
-function updateSummary(){const due=longReviewWords().length,neu=newWords().length;$('#dueCount').textContent=due;$('#newCount').textContent=neu;$('#streakCount').textContent=state.streak.current||0;}
+function updateSummary(){const due=longReviewWords().length,neu=newWords().length;$('#dueCount').textContent=due;$('#newCount').textContent=neu;$('#streakCount').textContent=state.streak.current||0;const tag=$('#cardTag');if(tag&&current){let info=$('#activePoolInfo');if(!info){info=document.createElement('small');info.id='activePoolInfo';info.style.display='block';info.style.marginTop='5px';info.style.fontSize='11px';info.style.color='var(--muted)';tag.insertAdjacentElement('afterend',info)}const limit=Math.max(1,Math.min(30,Number(state.settings.newLimit||12))),active=activeLearningWords().length,waiting=waitingRegularWords().length;info.textContent=`Aktiver Pool: ${active}/${limit}${waiting?` · ${waiting} warten`:''}`;}}
 function switchView(name){$$('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===name));$$('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${name}`));if(name==='words')renderWords();if(name==='progress')renderProgress();if(name==='settings')renderSettings();}
 function renderWords(){const q=normalizeBasic($('#wordSearch').value),filter=$('#wordFilter').value,t=now();let arr=state.words.filter(w=>{const p=pFor(w.id);if(q&&!normalizeBasic(`${w.ru} ${w.de} ${w.topic||''}`).includes(q))return false;if(filter==='due')return p.seen>0&&!p.active&&!p.postponed&&p.reviewStage>0&&p.due<=t;if(filter==='new')return p.seen===0;if(filter==='learning')return p.active;if(filter==='mastered')return p.level>=5&&!p.active;if(filter==='verbs')return w.type==='verb';return true});
  $('#wordCountText').textContent=`${arr.length} von ${state.words.length} Vokabeln`;$('#wordList').innerHTML=arr.map(w=>{const p=pFor(w.id);return `<div class="word-row" data-id="${escapeHtml(w.id)}"><div><div class="word-ru">${escapeHtml(w.ru)}</div><div class="word-meta">${escapeHtml(TYPE_LABEL[w.type]||'Vokabel')}${w.topic?' · '+escapeHtml(w.topic):''}</div></div><div><div class="word-de">${escapeHtml(w.de)}</div><div class="word-meta">${levelName(p)} · ${dueText(p)}</div></div><span class="level-dot l${Math.min(6,p.level)}" title="Stufe ${p.level}"></span></div>`}).join('')||'<div class="empty-state"><p>Keine passenden Vokabeln gefunden.</p></div>';$$('.word-row').forEach(r=>r.addEventListener('click',()=>openWordDialog(r.dataset.id)));}
@@ -145,7 +144,7 @@ function postponeCurrentWord(){if(!current)return;const w=current,p=pFor(w.id);p
 function installCardActions(){
  const old=$('#discardCurrent');if(!old)return;const discard=old.cloneNode(true);old.replaceWith(discard);discard.addEventListener('click',discardCurrentWord);discard.title='Diese Vokabel dauerhaft aus der aktiven Übung entfernen';
  if(!$('#postponeCurrent')){const b=document.createElement('button');b.id='postponeCurrent';b.className='secondary compact';b.type='button';b.textContent='Hinten anstellen';b.title='Diese Vokabel behalten, aber erst nach den übrigen Wörtern wieder zeigen';discard.insertAdjacentElement('beforebegin',b);b.addEventListener('click',postponeCurrentWord);}
- if(!$('#masterCurrent')){const b=document.createElement('button');b.id='masterCurrent';b.className='secondary compact';b.type='button';b.textContent='✓ Kann ich';b.title='Aktuelle Abfragerichtung sofort als 5/5 sicher markieren';const anchor=$('#postponeCurrent')||discard;anchor.insertAdjacentElement('beforebegin',b);b.addEventListener('click',markCurrentKnown);}
+ if(!$('#masterCurrent')){const b=document.createElement('button');b.id='masterCurrent';b.className='secondary compact';b.type='button';b.textContent='✓ Kann ich';b.title='Diese Vokabel komplett als sicher markieren und in einer Woche wiederholen';const anchor=$('#postponeCurrent')||discard;anchor.insertAdjacentElement('beforebegin',b);b.addEventListener('click',markCurrentKnown);}
  const repeat=$('#speakPrompt');if(repeat){repeat.className='secondary compact repeat-prompt';repeat.textContent='🔊 Noch einmal';repeat.title='Aktuelle Vorgabe noch einmal vorlesen';}
  const actions=$('.card-actions');if(actions)actions.classList.add('card-actions-wrap');
 }
