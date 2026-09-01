@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.01.24';
+const BUILD='2026.09.01.25';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
