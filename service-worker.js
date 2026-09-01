@@ -6,7 +6,7 @@ self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET')return;
   const url=new URL(event.request.url);
   if(url.pathname.endsWith('/voice-persistence.js')||url.pathname.endsWith('/mic-recovery.js')||url.pathname.endsWith('/feedback-recovery.js')||url.pathname.endsWith('/stable-voice.js')){
-    event.respondWith(Promise.resolve(new Response('/* disabled: replaced by voice-controller.js */',{headers:{'Content-Type':'application/javascript; charset=utf-8','Cache-Control':'no-store'}}));
+    event.respondWith(Promise.resolve(new Response('/* disabled: replaced by voice-controller.js */',{headers:{'Content-Type':'application/javascript; charset=utf-8','Cache-Control':'no-store'}})));
     return;
   }
   if(url.pathname.includes('/private-packs/')){
