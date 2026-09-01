@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.01.29';
+const BUILD='2026.09.01.30';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
@@ -23,6 +23,7 @@ async function loadHelpers(){
   loadScript('voice-add.js','voice-add');
   loadScript('learning-ui.js','learning-ui');
   loadScript('motion-hints.js','motion-hints');
+  loadScript('reveal-answer.js','reveal-answer');
   await loadScript('audio-toggle.js','audio-toggle');
   await loadScript('speech-unlock.js','speech-unlock');
   await loadScript('speech-tolerance.js','speech-tolerance');
