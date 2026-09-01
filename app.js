@@ -11,27 +11,47 @@ const dateKey=(d=new Date())=>{const y=d.getFullYear(),m=String(d.getMonth()+1).
 const defaultSettings={direction:'mixed',newLimit:12,typing:true,infinitiveFirst:true,autoplay:false,strict:false,dark:false};
 let state, current=null, currentDirection='ru-de', currentMode='learning', extraMode=false, toastTimer=null;
 
-function defaultState(){return {version:3,words:clone(window.DEFAULT_VOCABULARY||[]),progress:{},settings:{...defaultSettings},daily:{},streak:{current:0,best:0,lastDate:null},sessionTurn:0,postponedIds:[],createdAt:new Date().toISOString()}}
+function defaultState(){return {version:4,words:clone(window.DEFAULT_VOCABULARY||[]),progress:{},settings:{...defaultSettings},daily:{},streak:{current:0,best:0,lastDate:null},sessionTurn:0,postponedIds:[],createdAt:new Date().toISOString()}}
 function load(){
  try{const raw=localStorage.getItem(STORAGE_KEY);state=raw?JSON.parse(raw):defaultState()}catch(e){state=defaultState()}
- state.version=Math.max(3,Number(state.version||0));state.settings={...defaultSettings,...(state.settings||{})};state.words=Array.isArray(state.words)?state.words:[];state.progress=state.progress||{};state.daily=state.daily||{};state.streak=state.streak||{current:0,best:0,lastDate:null};state.sessionTurn=Number.isFinite(Number(state.sessionTurn))?Number(state.sessionTurn):0;state.postponedIds=Array.isArray(state.postponedIds)?state.postponedIds.filter(Boolean):[];
+ state.version=Math.max(4,Number(state.version||0));state.settings={...defaultSettings,...(state.settings||{})};state.words=Array.isArray(state.words)?state.words:[];state.progress=state.progress||{};state.daily=state.daily||{};state.streak=state.streak||{current:0,best:0,lastDate:null};state.sessionTurn=Number.isFinite(Number(state.sessionTurn))?Number(state.sessionTurn):0;state.postponedIds=Array.isArray(state.postponedIds)?state.postponedIds.filter(Boolean):[];
  const ids=new Set(state.words.map(w=>w.id));for(const w of (window.DEFAULT_VOCABULARY||[]))if(!ids.has(w.id)&&!state.deletedDefaultIds?.includes(w.id))state.words.push(clone(w));
  migrateLearningState();ensureActiveWindow();save();
 }
 function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
 function pFor(id){
- if(!state.progress[id])state.progress[id]={level:0,due:0,seen:0,correct:0,wrong:0,hard:0,lapses:0,lastReview:0,lastResult:null,active:false,streak:0,nextTurn:0,reviewStage:0,postponed:false};
+ if(!state.progress[id])state.progress[id]={level:0,due:0,seen:0,correct:0,wrong:0,hard:0,lapses:0,lastReview:0,lastResult:null,active:false,streak:0,nextTurn:0,reviewStage:0,postponed:false,dirStreak:{'ru-de':0,'de-ru':0}};
  const p=state.progress[id];
  if(typeof p.active!=='boolean')p.active=false;if(!Number.isFinite(Number(p.streak)))p.streak=0;if(!Number.isFinite(Number(p.nextTurn)))p.nextTurn=state.sessionTurn||0;if(!Number.isFinite(Number(p.reviewStage)))p.reviewStage=0;if(typeof p.postponed!=='boolean')p.postponed=false;
+ if(!p.dirStreak||typeof p.dirStreak!=='object')p.dirStreak=null;
  return p;
+}
+function clamp5(n){return Math.max(0,Math.min(5,Number(n)||0));}
+function requiredDirections(){return state.settings.direction==='mixed'?['ru-de','de-ru']:[state.settings.direction];}
+function dirValue(p,dir){return clamp5(p.dirStreak?.[dir]);}
+function setDirValue(p,dir,value){if(!p.dirStreak)p.dirStreak={'ru-de':0,'de-ru':0};p.dirStreak[dir]=clamp5(value);syncLegacyProgress(p);}
+function wordSecure(p){return requiredDirections().every(dir=>dirValue(p,dir)>=5);}
+function syncLegacyProgress(p){
+ if(!p.dirStreak)return;
+ const req=requiredDirections(),vals=req.map(d=>dirValue(p,d));
+ p.streak=vals.length?Math.min(...vals):0;
+ if(wordSecure(p)){p.level=5;}else if(p.active){p.level=Math.min(4,Math.max(1,Math.floor((dirValue(p,'ru-de')+dirValue(p,'de-ru'))/2)));}
 }
 function migrateLearningState(){
  const postponed=new Set(state.postponedIds);
  for(const w of state.words){const p=pFor(w.id);if(postponed.has(w.id))p.postponed=true;
-   if(p._loopMigrated)continue;
-   if(p.seen>0&&p.level<5&&!p.postponed){p.active=true;p.streak=Math.min(4,Math.max(0,Number(p.correct||0)));p.nextTurn=state.sessionTurn;}
-   else if(p.seen>0&&p.level>=5){p.active=false;p.reviewStage=Math.max(1,p.reviewStage||1);if(!p.due)p.due=now()+7*DAY;}
-   p._loopMigrated=true;
+   if(!p.dirStreak){
+     const legacy=p.level>=5?5:Math.min(4,Math.max(0,Number(p.streak||0)));
+     p.dirStreak={'ru-de':legacy,'de-ru':legacy};
+   }else{
+     p.dirStreak={'ru-de':clamp5(p.dirStreak['ru-de']),'de-ru':clamp5(p.dirStreak['de-ru'])};
+   }
+   if(!p._loopMigrated){
+     if(p.seen>0&&p.level<5&&!p.postponed){p.active=true;p.nextTurn=state.sessionTurn;}
+     else if(p.seen>0&&p.level>=5){p.dirStreak={'ru-de':5,'de-ru':5};p.active=false;p.reviewStage=Math.max(1,p.reviewStage||1);if(!p.due)p.due=now()+7*DAY;}
+     p._loopMigrated=true;
+   }
+   syncLegacyProgress(p);
  }
  state.postponedIds=state.postponedIds.filter(id=>state.words.some(w=>w.id===id));
 }
@@ -50,37 +70,63 @@ function ensureActiveWindow(){
  const limit=Math.max(1,Math.min(30,Number(state.settings.newLimit||12)));let active=activeLearningWords().length;
  while(active<limit){let w=unseenRegularWords()[0];if(!w)w=takeFirstPostponed();if(!w)break;const p=pFor(w.id);p.active=true;p.postponed=false;p.nextTurn=Math.min(Number.isFinite(Number(p.nextTurn))?Number(p.nextTurn):state.sessionTurn,state.sessionTurn);active++;}
 }
+function chooseDirection(p){
+ if(state.settings.direction!=='mixed')return state.settings.direction;
+ const a=dirValue(p,'ru-de'),b=dirValue(p,'de-ru');
+ if(a>=5&&b<5)return'de-ru';if(b>=5&&a<5)return'ru-de';
+ if(a<b)return'ru-de';if(b<a)return'de-ru';
+ return Math.random()<.5?'ru-de':'de-ru';
+}
 function selectNext(){
  ensureActiveWindow();let pool=longReviewWords();currentMode='review';
  if(!pool.length){currentMode='learning';const active=activeLearningWords();pool=active.filter(w=>pFor(w.id).nextTurn<=state.sessionTurn).sort((a,b)=>pFor(a.id).nextTurn-pFor(b.id).nextTurn||wordIndex(a.id)-wordIndex(b.id));if(!pool.length&&active.length){const min=Math.min(...active.map(w=>pFor(w.id).nextTurn));if(Number.isFinite(min)&&min>state.sessionTurn)state.sessionTurn=min;pool=active.filter(w=>pFor(w.id).nextTurn<=state.sessionTurn).sort((a,b)=>pFor(a.id).nextTurn-pFor(b.id).nextTurn||wordIndex(a.id)-wordIndex(b.id));}}
  if(!pool.length&&extraMode&&state.words.length){currentMode='extra';pool=state.words.filter(w=>!pFor(w.id).postponed).slice().sort((a,b)=>(pFor(a.id).lastReview||0)-(pFor(b.id).lastReview||0)||wordIndex(a.id)-wordIndex(b.id));}
- current=pool.length?pool[0]:null;if(current){currentDirection=state.settings.direction==='mixed'?(Math.random()<.5?'ru-de':'de-ru'):state.settings.direction}renderCard();save();
+ current=pool.length?pool[0]:null;if(current)currentDirection=chooseDirection(pFor(current.id));renderCard();save();
 }
 function normalizeBasic(s){return String(s||'').toLocaleLowerCase('de-DE').trim().replace(/[.,!?;:()„“"'’]/g,'').replace(/\s+/g,' ')}
 function normalizeGerman(s){return normalizeBasic(s).replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')}
 function normalizeRussian(s){let x=normalizeBasic(s);if(!state.settings.strict)x=x.replace(/ё/g,'е');return x}
 function levenshtein(a,b){const m=a.length,n=b.length,d=Array(n+1).fill(0);for(let j=0;j<=n;j++)d[j]=j;for(let i=1;i<=m;i++){let prev=d[0];d[0]=i;for(let j=1;j<=n;j++){const temp=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));prev=temp}}return d[n]}
-function acceptedAnswers(word,dir){return dir==='ru-de'?[word.de,...(word.altDe||[])]:[word.ru,...(word.altRu||[])]}
+function russianCore(s){const text=String(s||'').trim();const m=text.match(/^(.+?)\s*\+\s*(?:Dat\.?|Dativ|Akk\.?|Akkusativ|Gen\.?|Genitiv|Instr\.?|Instrumental|Präp\.?|Praep\.?|Präpositiv|Praepositiv|Lok\.?|Lokativ)\b/i);return (m?m[1]:text).trim();}
+function acceptedAnswers(word,dir){
+ if(dir==='ru-de')return [word.de,...(word.altDe||[])];
+ const base=[word.ru,...(word.altRu||[])],out=[];
+ for(const x of base){if(!x)continue;out.push(x);const core=russianCore(x);if(core&&core!==String(x).trim())out.push(core);}
+ return [...new Set(out)];
+}
 function isAnswerCorrect(answer,word,dir){const norm=dir==='ru-de'?normalizeGerman:normalizeRussian;const a=norm(answer);if(!a)return false;return acceptedAnswers(word,dir).some(x=>{const b=norm(x);if(a===b)return true;if(dir==='ru-de'&&b.length>=6&&levenshtein(a,b)<=1)return true;return false})}
 function answerSolution(w,dir){return dir==='ru-de'?w.de:w.ru}
+function directionStatus(p){return `DE→RU ${dirValue(p,'de-ru')}/5 · RU→DE ${dirValue(p,'ru-de')}/5`;}
 function renderCard(){const card=$('#learnCard'),empty=$('#emptyLearn');if(!current){card.classList.add('hidden');empty.classList.remove('hidden');updateEmptyState();updateSummary();return}card.classList.remove('hidden');empty.classList.add('hidden');
- const ru=currentDirection==='ru-de',p=pFor(current.id);$('#promptLabel').textContent=ru?'Russisch':'Deutsch';$('#answerLabel').textContent=ru?'Deutsch':'Russisch';$('#promptText').textContent=ru?current.ru:current.de;const status=currentMode==='learning'?` · ${Math.min(5,p.streak||0)}/5 richtig`:currentMode==='review'?' · Wiederholung':'';$('#cardTag').textContent=`${TYPE_LABEL[current.type]||'Vokabel'}${current.topic?' · '+current.topic:''}${status}`;$('#hintText').textContent=current.note||'';$('#answerInput').value='';$('#answerInput').placeholder=state.settings.typing?'Antwort eingeben …':'Du kannst die Antwort denken oder sprechen …';$('#checkAnswer').textContent=state.settings.typing?'Prüfen':'Antwort zeigen';$('#resultPanel').classList.add('hidden');$('#answerInput').disabled=false;$('#checkAnswer').disabled=false;$('#micButton').disabled=!speechRecognitionSupported();
+ const ru=currentDirection==='ru-de',p=pFor(current.id);$('#promptLabel').textContent=ru?'Russisch':'Deutsch';$('#answerLabel').textContent=ru?'Deutsch':'Russisch';$('#promptText').textContent=ru?current.ru:current.de;const status=currentMode==='learning'?` · ${directionStatus(p)}`:currentMode==='review'?' · Wiederholung':'';$('#cardTag').textContent=`${TYPE_LABEL[current.type]||'Vokabel'}${current.topic?' · '+current.topic:''}${status}`;$('#hintText').textContent=current.note||'';$('#answerInput').value='';$('#answerInput').placeholder=state.settings.typing?'Antwort eingeben …':'Du kannst die Antwort denken oder sprechen …';$('#checkAnswer').textContent=state.settings.typing?'Prüfen':'Antwort zeigen';$('#resultPanel').classList.add('hidden');$('#answerInput').disabled=false;$('#checkAnswer').disabled=false;$('#micButton').disabled=!speechRecognitionSupported();
  if(state.settings.autoplay&&ru)setTimeout(()=>speak(current.ru,'ru-RU'),180);setTimeout(()=>$('#answerInput').focus(),50);updateSummary();}
 function updateEmptyState(){const box=$('#emptyLearn');if(!box)return;const h=box.querySelector('h2'),p=box.querySelector('p'),b=$('#practiceExtra');if(h)h.textContent='Aktuell nichts fällig';if(p)p.textContent='Alle Wörter sind im Langzeitabstand. Sobald eine Wiederholung fällig ist, erscheint sie automatisch wieder.';if(b)b.textContent='Frei weiterüben';}
 function showResult(){if(!current)return;const typed=$('#answerInput').value;const checked=state.settings.typing;const correct=checked?isAnswerCorrect(typed,current,currentDirection):null;$('#resultPanel').classList.remove('hidden');$('#solutionText').textContent=answerSolution(current,currentDirection);const extras=acceptedAnswers(current,currentDirection).slice(1);$('#acceptedText').textContent=extras.length?'Auch akzeptiert: '+extras.join(' · '):'';const mark=$('#resultMark');mark.className='result-mark '+(correct===true?'correct':correct===false?'incorrect':'');mark.textContent=correct===true?'✓ Richtig':correct===false?'✗ Nicht ganz':'Wie sicher warst du?';$('#answerInput').disabled=true;$('#checkAnswer').disabled=true;}
-function scheduleLearning(p,rating,correctAnswer){
- if(!correctAnswer||rating==='again'){p.wrong++;p.lapses++;p.streak=0;p.level=1;p.nextTurn=state.sessionTurn+5;p.due=0;return;}
- if(rating==='hard'){p.hard++;p.streak=0;p.level=Math.max(1,p.level);p.nextTurn=state.sessionTurn+8;p.due=0;return;}
- p.correct++;p.streak=Math.min(5,(p.streak||0)+1);p.level=Math.min(4,p.streak);if(p.streak>=5){p.active=false;p.level=5;p.reviewStage=1;p.due=now()+7*DAY;p.nextTurn=state.sessionTurn;}else p.nextTurn=state.sessionTurn+(rating==='easy'?15:12);
+function scheduleLearning(p,rating,correctAnswer,dir){
+ if(!correctAnswer||rating==='again'){p.wrong++;p.lapses++;setDirValue(p,dir,0);p.active=true;p.level=Math.max(1,p.level);p.nextTurn=state.sessionTurn+5;p.due=0;return;}
+ if(rating==='hard'){p.hard++;setDirValue(p,dir,0);p.active=true;p.level=Math.max(1,p.level);p.nextTurn=state.sessionTurn+8;p.due=0;return;}
+ p.correct++;setDirValue(p,dir,dirValue(p,dir)+1);
+ if(wordSecure(p)){p.active=false;p.level=5;p.reviewStage=1;p.due=now()+7*DAY;p.nextTurn=state.sessionTurn;}else{p.active=true;p.due=0;p.nextTurn=state.sessionTurn+(rating==='easy'?15:12);syncLegacyProgress(p);}
 }
-function scheduleLongReview(p,rating,correctAnswer){
- if(!correctAnswer||rating==='again'||rating==='hard'){if(rating==='hard')p.hard++;else{p.wrong++;p.lapses++;}p.active=true;p.reviewStage=0;p.streak=0;p.level=1;p.due=0;p.nextTurn=state.sessionTurn+(rating==='hard'?8:5);return;}
- p.correct++;p.active=false;p.streak=5;p.level=Math.max(5,p.level);p.reviewStage=Math.max(1,p.reviewStage||1)+1;const days=REVIEW_DAYS[Math.min(REVIEW_DAYS.length-1,p.reviewStage-1)]||365;p.due=now()+days*DAY;
+function scheduleLongReview(p,rating,correctAnswer,dir){
+ if(!correctAnswer||rating==='again'||rating==='hard'){
+   if(rating==='hard')p.hard++;else{p.wrong++;p.lapses++;}
+   setDirValue(p,dir,0);p.active=true;p.reviewStage=0;p.level=1;p.due=0;p.nextTurn=state.sessionTurn+(rating==='hard'?8:5);return;
+ }
+ p.correct++;setDirValue(p,dir,5);p.active=false;p.level=5;p.reviewStage=Math.max(1,p.reviewStage||1)+1;const days=REVIEW_DAYS[Math.min(REVIEW_DAYS.length-1,p.reviewStage-1)]||365;p.due=now()+days*DAY;
 }
 function review(rating){if(!current)return;const p=pFor(current.id),wasNew=p.seen===0,typed=$('#answerInput').value,automatic=state.settings.typing,correctAnswer=automatic?isAnswerCorrect(typed,current,currentDirection):(rating==='good'||rating==='easy');p.seen++;p.lastReview=now();p.lastResult=rating;state.sessionTurn++;const d=today();d.answers++;if(correctAnswer)d.correct++;if(wasNew)d.newIntroduced++;registerStudy();
- if(currentMode==='review')scheduleLongReview(p,rating,correctAnswer);else if(currentMode==='extra'&&!p.active&&p.reviewStage>0){if(!correctAnswer||rating==='again'||rating==='hard'){p.active=true;p.reviewStage=0;p.streak=0;p.level=1;p.due=0;p.nextTurn=state.sessionTurn+(rating==='hard'?8:5);}else{p.correct++;p.lastReview=now();}}else scheduleLearning(p,rating,correctAnswer);
+ if(currentMode==='review')scheduleLongReview(p,rating,correctAnswer,currentDirection);else if(currentMode==='extra'&&!p.active&&p.reviewStage>0){if(!correctAnswer||rating==='again'||rating==='hard'){setDirValue(p,currentDirection,0);p.active=true;p.reviewStage=0;p.level=1;p.due=0;p.nextTurn=state.sessionTurn+(rating==='hard'?8:5);}else{p.correct++;setDirValue(p,currentDirection,5);p.lastReview=now();}}else scheduleLearning(p,rating,correctAnswer,currentDirection);
  extraMode=false;ensureActiveWindow();save();current=null;selectNext();renderProgress();}
-function levelName(p){if(p.postponed)return'Hinten angestellt';if(!p.seen)return p.active?'Neu · aktiv':'Neu';if(p.active)return`Lernen ${Math.min(5,p.streak||0)}/5`;if(p.level>=5)return'Sicher';return'Lernen'}
+function markCurrentKnown(){
+ if(!current)return;const p=pFor(current.id),wasNew=p.seen===0;
+ setDirValue(p,currentDirection,5);p.seen++;p.correct++;p.lastReview=now();p.lastResult='known';p.postponed=false;state.postponedIds=state.postponedIds.filter(id=>id!==current.id);state.sessionTurn++;
+ const d=today();d.answers++;d.correct++;if(wasNew)d.newIntroduced++;registerStudy();
+ if(wordSecure(p)){p.active=false;p.level=5;p.reviewStage=1;p.due=now()+7*DAY;p.nextTurn=state.sessionTurn;toast('Aktuelle Richtung 5/5 – Vokabel in der Wochenwiederholung');}
+ else{p.active=true;p.reviewStage=0;p.due=0;p.nextTurn=state.sessionTurn+1;syncLegacyProgress(p);toast('Aktuelle Richtung als 5/5 markiert');}
+ save();current=null;ensureActiveWindow();selectNext();renderProgress();
+}
+function levelName(p){if(p.postponed)return'Hinten angestellt';if(!p.seen)return p.active?'Neu · aktiv':'Neu';if(p.active)return`Lernen · ${directionStatus(p)}`;if(p.level>=5)return'Sicher';return'Lernen'}
 function dueText(p){if(p.postponed)return'am Ende der Lektion';if(p.active){const gap=Math.max(0,(p.nextTurn||0)-state.sessionTurn);return gap<=0?'jetzt dran':gap===1?'nach 1 Karte':`nach ${gap} Karten`;}if(!p.seen)return'noch nicht gelernt';const diff=p.due-now();if(diff<=0)return'jetzt fällig';if(diff<60*MIN)return`in ${Math.max(1,Math.round(diff/MIN))} Min.`;if(diff<DAY)return`in ${Math.round(diff/HOUR)} Std.`;return`in ${Math.round(diff/DAY)} Tagen`}
 function updateSummary(){const due=longReviewWords().length,neu=newWords().length;$('#dueCount').textContent=due;$('#newCount').textContent=neu;$('#streakCount').textContent=state.streak.current||0;}
 function switchView(name){$$('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===name));$$('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${name}`));if(name==='words')renderWords();if(name==='progress')renderProgress();if(name==='settings')renderSettings();}
@@ -99,21 +145,24 @@ function postponeCurrentWord(){if(!current)return;const w=current,p=pFor(w.id);p
 function installCardActions(){
  const old=$('#discardCurrent');if(!old)return;const discard=old.cloneNode(true);old.replaceWith(discard);discard.addEventListener('click',discardCurrentWord);discard.title='Diese Vokabel dauerhaft aus der aktiven Übung entfernen';
  if(!$('#postponeCurrent')){const b=document.createElement('button');b.id='postponeCurrent';b.className='secondary compact';b.type='button';b.textContent='Hinten anstellen';b.title='Diese Vokabel behalten, aber erst nach den übrigen Wörtern wieder zeigen';discard.insertAdjacentElement('beforebegin',b);b.addEventListener('click',postponeCurrentWord);}
+ if(!$('#masterCurrent')){const b=document.createElement('button');b.id='masterCurrent';b.className='secondary compact';b.type='button';b.textContent='✓ Kann ich';b.title='Aktuelle Abfragerichtung sofort als 5/5 sicher markieren';const anchor=$('#postponeCurrent')||discard;anchor.insertAdjacentElement('beforebegin',b);b.addEventListener('click',markCurrentKnown);}
+ const repeat=$('#speakPrompt');if(repeat){repeat.className='secondary compact repeat-prompt';repeat.textContent='🔊 Noch einmal';repeat.title='Aktuelle Vorgabe noch einmal vorlesen';}
+ const actions=$('.card-actions');if(actions)actions.classList.add('card-actions-wrap');
 }
 function splitSemi(s){return String(s||'').split(';').map(x=>x.trim()).filter(Boolean)}
-function speak(text,lang='ru-RU'){if(!('speechSynthesis'in window)){toast('Vorlesen wird von diesem Browser nicht unterstützt.');return}speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=.88;speechSynthesis.speak(u)}
+function speak(text,lang='ru-RU'){if(!('speechSynthesis'in window)){toast('Vorlesen wird von diesem Browser nicht unterstützt.');return}speechSynthesis.cancel();const spoken=lang.startsWith('ru')?russianCore(text):String(text||'');const u=new SpeechSynthesisUtterance(spoken);u.lang=lang;u.rate=.88;speechSynthesis.speak(u)}
 function speechRecognitionSupported(){return !!(window.SpeechRecognition||window.webkitSpeechRecognition)}
 function listen(){const C=window.SpeechRecognition||window.webkitSpeechRecognition;if(!C){toast('Spracherkennung wird von diesem Browser nicht unterstützt.');return}const r=new C();r.lang=currentDirection==='ru-de'?'de-DE':'ru-RU';r.interimResults=false;r.maxAlternatives=3;$('#micButton').textContent='●';r.onresult=e=>{const txt=e.results[0][0].transcript;$('#answerInput').value=txt;$('#micButton').textContent='🎙';if(state.settings.typing)showResult()};r.onerror=()=>{$('#micButton').textContent='🎙';toast('Die Spracheingabe hat nicht funktioniert.')};r.onend=()=>{$('#micButton').textContent='🎙'};r.start()}
 function exportBackup(){const payload={app:'Russisch-Vokabeltrainer',exportedAt:new Date().toISOString(),state};download(JSON.stringify(payload,null,2),`russisch-vokabeltrainer-sicherung-${dateKey()}.json`,'application/json')}
-function importBackup(file){const rd=new FileReader();rd.onload=()=>{try{const obj=JSON.parse(rd.result),incoming=obj.state||obj;if(!Array.isArray(incoming.words)||!incoming.progress)throw new Error();if(!confirm(`Sicherung mit ${incoming.words.length} Vokabeln importieren? Der aktuelle Stand wird ersetzt.`))return;state=incoming;state.settings={...defaultSettings,...(state.settings||{})};state.sessionTurn=Number(state.sessionTurn||0);state.postponedIds=Array.isArray(state.postponedIds)?state.postponedIds:[];migrateLearningState();ensureActiveWindow();save();renderSettings();renderProgress();renderWords();selectNext();toast('Sicherung importiert')}catch(e){toast('Diese Datei ist keine gültige Sicherung.')}};rd.readAsText(file)}
-function exportCSV(){const rows=[['Russisch','Deutsch','Alternative Deutsch','Alternative Russisch','Wortart','Thema','Hinweis','Formen','Lernstufe','Status/Fällig']];for(const w of state.words){const p=pFor(w.id);rows.push([w.ru,w.de,(w.altDe||[]).join('; '),(w.altRu||[]).join('; '),w.type||'',w.topic||'',w.note||'',w.forms||'',p.level,`${levelName(p)} · ${dueText(p)}`])}const csv='\ufeff'+rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');download(csv,`russisch-vokabeln-${dateKey()}.csv`,'text/csv;charset=utf-8')}
+function importBackup(file){const rd=new FileReader();rd.onload=()=>{try{const obj=JSON.parse(rd.result),incoming=obj.state||obj;if(!Array.isArray(incoming.words)||!incoming.progress)throw new Error();if(!confirm(`Sicherung mit ${incoming.words.length} Vokabeln importieren? Der aktuelle Stand wird ersetzt.`))return;state=incoming;state.version=Math.max(4,Number(state.version||0));state.settings={...defaultSettings,...(state.settings||{})};state.sessionTurn=Number(state.sessionTurn||0);state.postponedIds=Array.isArray(state.postponedIds)?state.postponedIds:[];migrateLearningState();ensureActiveWindow();save();renderSettings();renderProgress();renderWords();selectNext();toast('Sicherung importiert')}catch(e){toast('Diese Datei ist keine gültige Sicherung.')}};rd.readAsText(file)}
+function exportCSV(){const rows=[['Russisch','Deutsch','Alternative Deutsch','Alternative Russisch','Wortart','Thema','Hinweis','Formen','DE→RU','RU→DE','Lernstufe','Status/Fällig']];for(const w of state.words){const p=pFor(w.id);rows.push([w.ru,w.de,(w.altDe||[]).join('; '),(w.altRu||[]).join('; '),w.type||'',w.topic||'',w.note||'',w.forms||'',dirValue(p,'de-ru'),dirValue(p,'ru-de'),p.level,`${levelName(p)} · ${dueText(p)}`])}const csv='\ufeff'+rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');download(csv,`russisch-vokabeln-${dateKey()}.csv`,'text/csv;charset=utf-8')}
 function download(content,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
 function resetProgress(){if(!confirm('Wirklich nur den gesamten Lernstand löschen? Die Vokabeln bleiben erhalten.'))return;state.progress={};state.daily={};state.streak={current:0,best:0,lastDate:null};state.sessionTurn=0;state.postponedIds=[];save();extraMode=false;ensureActiveWindow();renderProgress();selectNext();toast('Lernstand gelöscht')}
 function resetAll(){if(!confirm('Wirklich alle Änderungen, eigenen Vokabeln und den Lernstand löschen?'))return;state=defaultState();ensureActiveWindow();save();renderSettings();renderProgress();renderWords();selectNext();toast('Ausgangsstand wiederhergestellt')}
 function escapeHtml(s){return String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}
 function toast(msg){const t=$('#toast');if(!t)return;t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200)}
 function bind(){$$('.tab').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));$('#checkAnswer').addEventListener('click',showResult);$('#answerInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();if(!$('#resultPanel').classList.contains('hidden'))return;showResult()}});$$('.rating').forEach(b=>b.addEventListener('click',()=>review(b.dataset.rating)));$('#speakPrompt').addEventListener('click',()=>{if(current)speak(currentDirection==='ru-de'?current.ru:current.de,currentDirection==='ru-de'?'ru-RU':'de-DE')});$('#micButton').addEventListener('click',listen);$('#practiceExtra').addEventListener('click',()=>{extraMode=true;selectNext()});$('#editCurrent').addEventListener('click',()=>current&&openWordDialog(current.id));$('#addWord').addEventListener('click',()=>openWordDialog());$('#wordSearch').addEventListener('input',renderWords);$('#wordFilter').addEventListener('change',renderWords);$('#wordForm').addEventListener('submit',saveWordFromForm);$('#deleteWord').addEventListener('click',deleteCurrentEdit);
- ['Direction','NewLimit','Typing','InfinitiveFirst','Autoplay','Strict'].forEach(k=>{const el=$('#setting'+k);el.addEventListener('change',()=>{const key={Direction:'direction',NewLimit:'newLimit',Typing:'typing',InfinitiveFirst:'infinitiveFirst',Autoplay:'autoplay',Strict:'strict'}[k];state.settings[key]=el.type==='checkbox'?el.checked:el.type==='number'?Math.max(5,Math.min(30,Number(el.value)||12)):el.value;save();ensureActiveWindow();selectNext();toast('Einstellung gespeichert')})});$('#themeToggle').addEventListener('click',()=>{state.settings.dark=!state.settings.dark;save();renderSettings()});$('#exportData').addEventListener('click',exportBackup);$('#importData').addEventListener('change',e=>{if(e.target.files[0])importBackup(e.target.files[0]);e.target.value=''});$('#exportWords').addEventListener('click',exportCSV);$('#resetProgress').addEventListener('click',resetProgress);$('#resetAll').addEventListener('click',resetAll);}
+ ['Direction','NewLimit','Typing','InfinitiveFirst','Autoplay','Strict'].forEach(k=>{const el=$('#setting'+k);el.addEventListener('change',()=>{const key={Direction:'direction',NewLimit:'newLimit',Typing:'typing',InfinitiveFirst:'infinitiveFirst',Autoplay:'autoplay',Strict:'strict'}[k];state.settings[key]=el.type==='checkbox'?el.checked:el.type==='number'?Math.max(5,Math.min(30,Number(el.value)||12)):el.value;for(const w of state.words)syncLegacyProgress(pFor(w.id));save();ensureActiveWindow();selectNext();toast('Einstellung gespeichert')})});$('#themeToggle').addEventListener('click',()=>{state.settings.dark=!state.settings.dark;save();renderSettings()});$('#exportData').addEventListener('click',exportBackup);$('#importData').addEventListener('change',e=>{if(e.target.files[0])importBackup(e.target.files[0]);e.target.value=''});$('#exportWords').addEventListener('click',exportCSV);$('#resetProgress').addEventListener('click',resetProgress);$('#resetAll').addEventListener('click',resetAll);}
 function init(){load();bind();renderSettings();renderProgress();renderWords();selectNext();setTimeout(installCardActions,120);if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./service-worker.js').catch(()=>{});}
 init();
 })();
