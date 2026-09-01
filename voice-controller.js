@@ -23,6 +23,9 @@ let utteranceStart=0;
 let resultSegments=new Map();
 let cardTranscript='';
 let ownSpeech=false;
+let speechStartedAt=0;
+let shortSoundStartedAt=0;
+let startupVoiceGuard=true;
 
 function loadPrefs(){try{return {autoMic:true,...JSON.parse(localStorage.getItem(PREF_KEY)||'{}')}}catch(e){return {autoMic:true}}}
 function savePrefs(){localStorage.setItem(PREF_KEY,JSON.stringify(prefs));}
@@ -38,6 +41,14 @@ function setMicButton(on){const b=$('#micButton');if(!b)return;b.textContent=on?
 function clearSubmit(){clearTimeout(submitTimer);submitTimer=null;}
 function normWord(w){return String(w||'').toLocaleLowerCase().replace(/^[\s.,!?;:„“"'()\[\]{}…-]+|[\s.,!?;:„“"'()\[\]{}…-]+$/g,'');}
 function russianCore(s){const text=String(s||'').trim();const m=text.match(/^(.+?)\s*\+\s*(?:Dat\.?|Dativ|Akk\.?|Akkusativ|Gen\.?|Genitiv|Instr\.?|Instrumental|Präp\.?|Praep\.?|Präpositiv|Praepositiv|Lok\.?|Lokativ)\b/i);return (m?m[1]:text).trim();}
+function singleRussianTarget(){
+  if(answerLang()!=='ru-RU')return'';
+  try{
+    const list=window.__rvtSpeechCandidates?.russian?.()||[];
+    const singles=[...new Set(list.map(russianCore).filter(x=>/^[а-яё]$/i.test(x)))];
+    return singles.length===1?singles[0]:'';
+  }catch(e){return'';}
+}
 function cleanTranscript(text){
   let words=String(text||'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean);
   if(!words.length)return'';
@@ -57,7 +68,7 @@ function cleanTranscript(text){
   return out.join(' ').replace(/\s+/g,' ').trim();
 }
 function resetAnswerCapture(clearInput=true){
-  clearSubmit();speechDetected=false;utteranceStart=sessionResultCount;resultSegments.clear();cardTranscript='';
+  clearSubmit();speechDetected=false;speechStartedAt=0;shortSoundStartedAt=0;utteranceStart=sessionResultCount;resultSegments.clear();cardTranscript='';
   if(clearInput){const input=$('#answerInput');if(input){input.value='';input.classList.remove('voice-recognized');}}
 }
 function composeTranscript(){
@@ -65,6 +76,15 @@ function composeTranscript(){
   return cleanTranscript(text);
 }
 function appSpeaking(){return ownSpeech||!!window.__rvtAppSpeaking;}
+function fillSingleRussianFallback(){
+  if(cardTranscript.trim()||submittedSerial===cardSerial||!answerReady()||appSpeaking())return false;
+  const target=singleRussianTarget();if(!target)return false;
+  const start=speechStartedAt||shortSoundStartedAt;if(!start)return false;
+  const duration=Date.now()-start;if(duration<35||duration>1100)return false;
+  speechDetected=true;cardTranscript=target;
+  const input=$('#answerInput');if(input){input.value=target;input.classList.add('voice-recognized');input.dataset.voiceRaw='[kurzer Laut ohne Transkript]';}
+  setStatus(`Kurzes russisches Wort „${target}“ erkannt …`,true);return true;
+}
 
 function markSpeechStart(){ownSpeech=true;window.__rvtAppSpeaking=true;clearSubmit();speechDetected=false;resultSegments.clear();cardTranscript='';}
 function markSpeechEnd(){ownSpeech=false;window.__rvtAppSpeaking=false;suppressUntil=Date.now()+380;resetAnswerCapture(true);if(answerReady()&&prefs.autoMic)setStatus(statusListening(),recognitionRunning||recognitionStarting);}
@@ -83,7 +103,7 @@ function updateToggle(){const b=$('#voiceQuickToggle');if(b){b.textContent=prefs
 function stopRecognition(permanent=false){
   clearSubmit();clearTimeout(restartTimer);restartTimer=null;recognitionStarting=false;acceptingAnswer=false;
   if(permanent)userStopped=true;
-  const r=recognition;recognition=null;recognitionRunning=false;recognitionLang='';sessionResultCount=0;utteranceStart=0;resultSegments.clear();speechDetected=false;
+  const r=recognition;recognition=null;recognitionRunning=false;recognitionLang='';sessionResultCount=0;utteranceStart=0;resultSegments.clear();speechDetected=false;speechStartedAt=0;shortSoundStartedAt=0;
   if(r){try{r.abort()}catch(e){}}
   setMicButton(false);
 }
@@ -98,17 +118,19 @@ function scheduleSubmit(delay=1300){
 function beginUserSpeech(startIndex){
   if(!acceptingAnswer||appSpeaking()||Date.now()<suppressUntil||!answerReady()||submittedSerial===cardSerial)return false;
   clearSubmit();
-  if(!speechDetected){speechDetected=true;utteranceStart=Math.max(0,startIndex);resultSegments.clear();cardTranscript='';}
+  if(!speechDetected){speechDetected=true;speechStartedAt=Date.now();utteranceStart=Math.max(0,startIndex);resultSegments.clear();cardTranscript='';}
   setStatus(statusListening(),true);return true;
 }
 function ensureRecognition(manual=false){
   if(!learnActive())return false;const target=answerLang();
   if((recognitionRunning||recognitionStarting)&&recognitionLang===target){setMicButton(true);return true;}
-  if(recognitionRunning||recognitionStarting){const old=recognition;recognition=null;recognitionRunning=false;recognitionStarting=false;recognitionLang='';sessionResultCount=0;utteranceStart=0;resultSegments.clear();speechDetected=false;if(old){try{old.abort()}catch(e){}}}
+  if(recognitionRunning||recognitionStarting){const old=recognition;recognition=null;recognitionRunning=false;recognitionStarting=false;recognitionLang='';sessionResultCount=0;utteranceStart=0;resultSegments.clear();speechDetected=false;speechStartedAt=0;shortSoundStartedAt=0;if(old){try{old.abort()}catch(e){}}}
   const C=window.SpeechRecognition||window.webkitSpeechRecognition;if(!C){setStatus('Spracherkennung wird von diesem Gerät nicht unterstützt.');return false;}
-  clearTimeout(restartTimer);restartTimer=null;userStopped=false;recognitionStarting=true;recognitionLang=target;sessionResultCount=0;utteranceStart=0;resultSegments.clear();speechDetected=false;
-  const r=new C();recognition=r;r.lang=target;r.interimResults=true;r.continuous=true;r.maxAlternatives=3;
+  clearTimeout(restartTimer);restartTimer=null;userStopped=false;recognitionStarting=true;recognitionLang=target;sessionResultCount=0;utteranceStart=0;resultSegments.clear();speechDetected=false;speechStartedAt=0;shortSoundStartedAt=0;
+  const r=new C();recognition=r;r.lang=target;r.interimResults=true;r.continuous=true;r.maxAlternatives=5;
   r.onstart=()=>{if(recognition!==r)return;recognitionStarting=false;recognitionRunning=true;setMicButton(true);if(acceptingAnswer)setStatus(statusListening(),true);};
+  r.onsoundstart=()=>{if(recognition!==r||!acceptingAnswer||appSpeaking()||Date.now()<suppressUntil||!singleRussianTarget())return;shortSoundStartedAt=Date.now();};
+  r.onsoundend=()=>{if(recognition!==r||!shortSoundStartedAt||cardTranscript.trim()||submittedSerial===cardSerial||!answerReady())return;setTimeout(()=>{if(recognition===r&&!cardTranscript.trim()&&submittedSerial!==cardSerial&&fillSingleRussianFallback())scheduleSubmit(260);},220);};
   r.onspeechstart=()=>{if(recognition!==r)return;beginUserSpeech(sessionResultCount);};
   r.onresult=e=>{
     if(recognition!==r)return;
@@ -127,22 +149,24 @@ function ensureRecognition(manual=false){
     setStatus(statusListening(),true);
     if(hasFinal)scheduleSubmit(1700);else clearSubmit();
   };
-  r.onspeechend=()=>{if(recognition!==r||!speechDetected||submittedSerial===cardSerial||!answerReady())return;if(cardTranscript.trim())scheduleSubmit(1300);};
+  r.onspeechend=()=>{if(recognition!==r||submittedSerial===cardSerial||!answerReady())return;if(cardTranscript.trim())scheduleSubmit(1300);else if(fillSingleRussianFallback())scheduleSubmit(260);};
   r.onerror=e=>{
     if(recognition!==r)return;const code=e?.error||'';
     if(code==='not-allowed'||code==='service-not-allowed'){recognition=null;recognitionRunning=false;recognitionStarting=false;recognitionLang='';setMicButton(false);setStatus('Mikrofonzugriff ist nicht erlaubt. Bitte einmal auf das Mikrofon tippen.');return;}
     if(code==='aborted')return;
     if(code==='no-speech'){
-      if(speechDetected&&cardTranscript.trim()){scheduleSubmit(700);return;}
+      if(cardTranscript.trim()){scheduleSubmit(700);return;}
+      if(fillSingleRussianFallback()){scheduleSubmit(260);return;}
       resetAnswerCapture(true);setStatus(answerReady()&&prefs.autoMic?statusListening():'',answerReady()&&prefs.autoMic);return;
     }
     setStatus('Spracherkennung wurde kurz unterbrochen – ich verbinde neu …');
   };
   r.onend=()=>{
     if(recognition!==r)return;
+    if(!cardTranscript.trim())fillSingleRussianFallback();
     const pending=speechDetected&&!!cardTranscript.trim()&&submittedSerial!==cardSerial&&answerReady();
     recognition=null;recognitionRunning=false;recognitionStarting=false;recognitionLang='';setMicButton(false);
-    if(pending){scheduleSubmit(500);return;}
+    if(pending){scheduleSubmit(420);return;}
     resetAnswerCapture(false);sessionResultCount=0;utteranceStart=0;
     if(prefs.autoMic&&!userStopped&&document.visibilityState!=='hidden'&&learnActive())scheduleRestart(240);
   };
@@ -174,9 +198,20 @@ function resultKind(){const m=$('#resultMark');if(m?.classList.contains('correct
 function ratingFor(k){return k==='correct'?'good':k==='almost'?'hard':'again';}
 function showFeedback(kind){let o=$('#stableFeedback');if(!o){o=document.createElement('div');o.id='stableFeedback';o.innerHTML='<div class="stable-feedback-card"><div class="stable-feedback-symbol"></div><div class="stable-feedback-label"></div></div>';document.body.appendChild(o);}o.className='stable-feedback '+kind+' show';o.querySelector('.stable-feedback-symbol').textContent=kind==='correct'?'✓':kind==='almost'?'○':'✕';o.querySelector('.stable-feedback-label').textContent=kind==='correct'?'Richtig':kind==='almost'?'Fast richtig':'Falsch';}
 function hideFeedback(){const o=$('#stableFeedback');if(o)o.classList.remove('show');}
+function retryStartupVoiceResult(){
+  const panel=$('#resultPanel'),input=$('#answerInput'),check=$('#checkAnswer');
+  if(panel)panel.classList.add('hidden');
+  if(input){input.disabled=false;input.value='';input.classList.remove('voice-recognized');}
+  if(check)check.disabled=false;
+  submittedSerial=-1;handledResultSerial=-1;acceptingAnswer=!!prefs.autoMic;resetAnswerCapture(true);
+  setStatus('Erste Spracherkennung war unsicher – bitte noch einmal sprechen.',true);
+}
 function handleResult(){
-  if($('#resultPanel')?.classList.contains('hidden')||handledResultSerial===cardSerial)return;handledResultSerial=cardSerial;clearTimeout(advanceTimer);clearSubmit();acceptingAnswer=false;speechDetected=false;
-  const serial=cardSerial,kind=resultKind();showFeedback(kind);setStatus('Mikrofon bleibt für die nächste Vokabel bereit.',recognitionRunning||recognitionStarting);
+  if($('#resultPanel')?.classList.contains('hidden')||handledResultSerial===cardSerial)return;
+  clearTimeout(advanceTimer);clearSubmit();acceptingAnswer=false;speechDetected=false;
+  const serial=cardSerial,kind=resultKind(),voiceAnswer=$('#answerInput')?.classList.contains('voice-recognized');
+  if(startupVoiceGuard&&voiceAnswer){startupVoiceGuard=false;if(kind==='wrong'){retryStartupVoiceResult();return;}}
+  handledResultSerial=cardSerial;showFeedback(kind);setStatus('Mikrofon bleibt für die nächste Vokabel bereit.',recognitionRunning||recognitionStarting);
   if(kind!=='correct')setTimeout(()=>{if(serial===cardSerial)speak($('#solutionText')?.textContent||'',answerLang());},260);
   advanceTimer=setTimeout(()=>{if(serial!==cardSerial||$('#resultPanel')?.classList.contains('hidden'))return;hideFeedback();const btn=$(`.rating[data-rating="${ratingFor(kind)}"]`);if(btn)btn.click();},2400);
 }
