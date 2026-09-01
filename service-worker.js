@@ -1,4 +1,4 @@
-const CACHE='russisch-vokabeltrainer-v34';
+const CACHE='russisch-vokabeltrainer-v35';
 const ASSETS=['./','./index.html','./styles.css','./data.js','./app.js','./features.js','./speaking.js','./forms.js','./audio-toggle.js','./speech-unlock.js','./speech-tolerance.js','./voice-controller.js','./voice-add.js','./learning-ui.js','./forms-voice.js','./update-helper.js','./exercise-packages.js','./import-code.js','./standard-a1a2-data.js','./standard-b1-data.js','./standard-pack.js','./manifest.webmanifest','./app-icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
