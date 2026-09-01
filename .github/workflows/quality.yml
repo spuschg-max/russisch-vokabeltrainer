@@ -25,6 +25,7 @@ jobs:
           node --check speech-tolerance.js
           node --check speech-segmentation.js
           node --check voice-controller.js
+          node --check voice-selfcheck.js
           node --check voice-add.js
           node --check learning-ui.js
           node --check motion-hints.js
@@ -49,6 +50,7 @@ jobs:
           test -s speech-tolerance.js
           test -s speech-segmentation.js
           test -s voice-controller.js
+          test -s voice-selfcheck.js
           test -s voice-add.js
           test -s learning-ui.js
           test -s motion-hints.js
