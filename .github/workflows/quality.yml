@@ -28,6 +28,7 @@ jobs:
           node --check voice-add.js
           node --check learning-ui.js
           node --check motion-hints.js
+          node --check reveal-answer.js
           node --check update-helper.js
           node --check exercise-packages.js
           node --check standard-pack.js
@@ -51,6 +52,7 @@ jobs:
           test -s voice-add.js
           test -s learning-ui.js
           test -s motion-hints.js
+          test -s reveal-answer.js
           test -s update-helper.js
           test -s exercise-packages.js
           test -s standard-pack.js
