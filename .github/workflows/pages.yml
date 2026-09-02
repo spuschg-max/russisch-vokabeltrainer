@@ -26,6 +26,8 @@ jobs:
         run: python3 scripts/build_standard_vocab.py
       - name: Konjugationen und Betonungen ergänzen
         run: python3 scripts/enrich_conjugations.py
+      - name: Allgemeines Betonungslexikon erzeugen
+        run: python3 scripts/build_stress_lexicon.py
       - name: Pages konfigurieren
         uses: actions/configure-pages@v5
         with:
