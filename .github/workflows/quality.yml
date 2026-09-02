@@ -33,6 +33,8 @@ jobs:
           node --check motion-hints.js
           node --check reveal-answer.js
           node --check problem-vocab.js
+          node --check stress-lexicon-data.js
+          node --check stress-display.js
           node --check conjugation-data-bridge.js
           node --check conjugation-drill.js
           node --check conjugation-study.js
@@ -40,7 +42,7 @@ jobs:
           node --check exercise-packages.js
           node --check standard-pack.js
           node --check service-worker.js
-          python3 -m py_compile scripts/build_standard_vocab.py scripts/enrich_conjugations.py
+          python3 -m py_compile scripts/build_standard_vocab.py scripts/enrich_conjugations.py scripts/build_stress_lexicon.py
       - name: Pflichtdateien prüfen
         run: |
           test -s index.html
@@ -64,6 +66,8 @@ jobs:
           test -s motion-hints.js
           test -s reveal-answer.js
           test -s problem-vocab.js
+          test -s stress-lexicon-data.js
+          test -s stress-display.js
           test -s conjugation-data-bridge.js
           test -s conjugation-drill.js
           test -s conjugation-study.js
@@ -72,6 +76,7 @@ jobs:
           test -s standard-pack.js
           test -s scripts/build_standard_vocab.py
           test -s scripts/enrich_conjugations.py
+          test -s scripts/build_stress_lexicon.py
           grep -q 'id="learnCard"' index.html
           grep -q 'id="discardCurrent"' index.html
           grep -q 'id="installApp"' index.html
@@ -79,6 +84,7 @@ jobs:
           grep -q 'forms.js' index.html
           grep -q 'voice-persistence.js' index.html
           grep -q 'forms-voice.js' index.html
+          grep -q 'stress-lexicon-data.js' index.html
           grep -q 'update-helper.js' index.html
           grep -q 'exercise-packages.js' index.html
           grep -q 'standard-a1a2-data.js' index.html
@@ -86,4 +92,5 @@ jobs:
           grep -q 'standard-pack.js' index.html
           grep -q 'SMARTool_data_B1.csv' scripts/build_standard_vocab.py
           grep -q 'enrich_conjugations.py' .github/workflows/pages.yml
+          grep -q 'build_stress_lexicon.py' .github/workflows/pages.yml
           grep -q 'DEFAULT_VOCABULARY' data.js
