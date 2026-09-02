@@ -24,6 +24,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Freien A1/A2- und B1-Standardwortschatz erzeugen
         run: python3 scripts/build_standard_vocab.py
+      - name: Konjugationen und Betonungen ergänzen
+        run: python3 scripts/enrich_conjugations.py
       - name: Pages konfigurieren
         uses: actions/configure-pages@v5
         with:
