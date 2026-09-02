@@ -37,6 +37,7 @@ jobs:
           node --check stress-display.js
           node --check sentence-lazy-loader.js
           node --check sentence-drill.js
+          node --check sentence-voice-loop.js
           node --check conjugation-data-bridge.js
           node --check conjugation-drill.js
           node --check conjugation-study.js
@@ -72,6 +73,7 @@ jobs:
           test -s stress-display.js
           test -s sentence-lazy-loader.js
           test -s sentence-drill.js
+          test -s sentence-voice-loop.js
           test -s conjugation-data-bridge.js
           test -s conjugation-drill.js
           test -s conjugation-study.js
@@ -90,6 +92,7 @@ jobs:
           grep -q 'speaking.js' index.html
           grep -q 'forms.js' index.html
           grep -q 'voice-persistence.js' index.html
+          grep -q 'Legacy-Sprachsteuerung dauerhaft deaktiviert' voice-persistence.js
           grep -q 'forms-voice.js' index.html
           grep -q 'stress-lexicon-data.js' index.html
           grep -q 'update-helper.js' index.html
@@ -106,4 +109,6 @@ jobs:
           grep -q 'id="sentenceCase"' sentence-drill.js
           grep -q 'sentence-lazy-loader.js' update-helper.js
           grep -q 'sentence-lazy-loader.js' service-worker.js
+          grep -q 'sentence-voice-loop.js' update-helper.js
+          grep -q 'sentence-voice-loop.js' service-worker.js
           grep -q 'DEFAULT_VOCABULARY' data.js
