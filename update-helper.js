@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.02.44';
+const BUILD='2026.09.02.45';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 function showVersion(){const install=$('#installPanel');if(!install||$('#appBuildInfo'))return;const p=document.createElement('p');p.id='appBuildInfo';p.className='app-build-info';p.textContent=`App-Version ${BUILD} · Updates werden beim Öffnen automatisch geprüft.`;install.appendChild(p);const s=document.createElement('style');s.textContent='.app-build-info{margin-top:10px!important;font-size:12px;color:var(--muted)}';document.head.appendChild(s)}
