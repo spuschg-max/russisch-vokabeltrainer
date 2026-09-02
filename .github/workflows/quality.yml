@@ -33,13 +33,14 @@ jobs:
           node --check motion-hints.js
           node --check reveal-answer.js
           node --check problem-vocab.js
+          node --check conjugation-data-bridge.js
           node --check conjugation-drill.js
           node --check conjugation-study.js
           node --check update-helper.js
           node --check exercise-packages.js
           node --check standard-pack.js
           node --check service-worker.js
-          python3 -m py_compile scripts/build_standard_vocab.py
+          python3 -m py_compile scripts/build_standard_vocab.py scripts/enrich_conjugations.py
       - name: Pflichtdateien prüfen
         run: |
           test -s index.html
@@ -63,12 +64,14 @@ jobs:
           test -s motion-hints.js
           test -s reveal-answer.js
           test -s problem-vocab.js
+          test -s conjugation-data-bridge.js
           test -s conjugation-drill.js
           test -s conjugation-study.js
           test -s update-helper.js
           test -s exercise-packages.js
           test -s standard-pack.js
           test -s scripts/build_standard_vocab.py
+          test -s scripts/enrich_conjugations.py
           grep -q 'id="learnCard"' index.html
           grep -q 'id="discardCurrent"' index.html
           grep -q 'id="installApp"' index.html
@@ -82,4 +85,5 @@ jobs:
           grep -q 'standard-b1-data.js' index.html
           grep -q 'standard-pack.js' index.html
           grep -q 'SMARTool_data_B1.csv' scripts/build_standard_vocab.py
+          grep -q 'enrich_conjugations.py' .github/workflows/pages.yml
           grep -q 'DEFAULT_VOCABULARY' data.js
