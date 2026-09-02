@@ -2,9 +2,9 @@
 'use strict';
 const $=s=>document.querySelector(s);
 let unlocked=false;
+let pending=null;
 let originalSpeak=null;
 let installed=false;
-let gestureUntil=0;
 
 function muted(){try{return !!JSON.parse(localStorage.getItem('russischVokabeltrainer.audio.v1')||'{}').muted}catch(e){return false}}
 function langForPrompt(){return /russisch/i.test($('#promptLabel')?.textContent||'')?'ru-RU':'de-DE';}
@@ -13,9 +13,9 @@ function pickVoice(lang){const voices=speechSynthesis.getVoices?.()||[];const ba
 function makeUtterance(text,lang){const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=lang.startsWith('ru')?.68:.82;u.pitch=1;const voice=pickVoice(lang);if(voice)u.voice=voice;return u;}
 function signalUtterance(u){
   if(!u||u.__rvtSignalled)return u;u.__rvtSignalled=true;
-  const oldStart=u.onstart,oldEnd=u.onend,oldError=u.onerror;let started=false,finished=false;
-  u.onstart=e=>{started=true;unlocked=true;render();window.__rvtAppSpeaking=true;document.dispatchEvent(new Event('rvt-app-speech-start'));try{oldStart?.call(u,e)}catch(x){}};
-  const finish=(e,old)=>{if(finished)return;finished=true;if(started){window.__rvtAppSpeaking=false;document.dispatchEvent(new Event('rvt-app-speech-end'));}try{old?.call(u,e)}catch(x){}};
+  const oldStart=u.onstart,oldEnd=u.onend,oldError=u.onerror;
+  u.onstart=e=>{unlocked=true;if(pending===u)pending=null;render();window.__rvtAppSpeaking=true;document.dispatchEvent(new Event('rvt-app-speech-start'));try{oldStart?.call(u,e)}catch(x){}};
+  const finish=(e,old)=>{window.__rvtAppSpeaking=false;document.dispatchEvent(new Event('rvt-app-speech-end'));try{old?.call(u,e)}catch(x){}};
   u.onend=e=>finish(e,oldEnd);u.onerror=e=>finish(e,oldError);return u;
 }
 function render(){
@@ -24,38 +24,32 @@ function render(){
     b=document.createElement('button');b.id='speechUnlockButton';b.type='button';b.className='secondary compact speech-unlock';
     const audio=$('#audioQuickToggle'),auto=$('#voiceQuickToggle');
     if(audio)audio.insertAdjacentElement('afterend',b);else if(auto)auto.insertAdjacentElement('afterend',b);else document.body.appendChild(b);
-    b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();unlockAndSpeak();});
+    b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();unlockAndSpeak(true);});
   }
   b.textContent=unlocked?'🔊 Wort vorlesen':'🔊 Sprache starten';
-  b.title=unlocked?'Aktuelle Vokabel noch einmal vorlesen':'iOS-Sprachausgabe einmal bewusst freigeben';
+  b.title=unlocked?'Aktuelle Vokabel noch einmal vorlesen':'Falls iOS die automatische Sprachausgabe blockiert, einmal antippen';
 }
-function nativeSpeak(u){if(!u||muted()||!originalSpeak)return false;try{originalSpeak(signalUtterance(u));return true}catch(e){return false}}
-function unlockAndSpeak(){
+function directSpeak(u){if(!u||muted()||!originalSpeak)return false;try{speechSynthesis.resume();pending=u;originalSpeak(signalUtterance(u));return true}catch(e){return false}}
+function unlockAndSpeak(forceCurrent=false){
   if(muted()||!originalSpeak)return;
-  const text=currentPrompt();if(!text)return;
-  unlocked=true;gestureUntil=performance.now()+1200;render();
-  // resume() nur innerhalb dieser bewussten Benutzeraktion; kein automatischer
-  // Kartenwechsel darf Safari damit mehr blockieren.
-  try{speechSynthesis.resume();}catch(e){}
-  nativeSpeak(makeUtterance(text,langForPrompt()));
+  let u=null;
+  if(forceCurrent){const text=currentPrompt();if(text)u=makeUtterance(text,langForPrompt());pending=null;}
+  if(!u&&pending){u=pending;pending=null;}
+  if(u)directSpeak(u);
 }
-function gesture(){gestureUntil=performance.now()+700;}
 function install(){
   if(installed||!('speechSynthesis'in window)||typeof speechSynthesis.speak!=='function')return;installed=true;originalSpeak=speechSynthesis.speak.bind(speechSynthesis);
   speechSynthesis.speak=function(u){
     if(!u)return;
     const signalled=signalUtterance(u);
     if(muted())return originalSpeak(signalled);
-    // Vor der ersten echten Benutzerfreigabe werden automatische Sprachaufträge
-    // verworfen. Wichtig: Hier KEIN resume()/cancel() – diese Aufrufe können auf
-    // iOS den JS-Hauptthread in einem verklemmten Sprachzustand festhalten.
-    if(!unlocked&&performance.now()>gestureUntil){render();return;}
-    try{return originalSpeak(signalled);}catch(e){render();}
+    pending=signalled;render();
+    try{speechSynthesis.resume();return originalSpeak(signalled);}catch(e){render();}
   };
   try{speechSynthesis.getVoices()}catch(e){}
   speechSynthesis.addEventListener?.('voiceschanged',()=>{try{speechSynthesis.getVoices()}catch(e){}});
-  document.addEventListener('pointerdown',gesture,{capture:true,passive:true});
-  document.addEventListener('touchstart',gesture,{capture:true,passive:true});
+  document.addEventListener('pointerdown',()=>{if(!unlocked&&pending)unlockAndSpeak(false);},{capture:true});
+  document.addEventListener('touchend',()=>{if(!unlocked&&pending)unlockAndSpeak(false);},{capture:true});
   render();
   if(!$('#speechUnlockStyles')){const s=document.createElement('style');s.id='speechUnlockStyles';s.textContent=`.speech-unlock{white-space:nowrap;padding:9px 11px}@media(max-width:650px){#exerciseBar{grid-template-columns:1fr 1fr!important}#speechUnlockButton{grid-column:1/-1!important}}`;document.head.appendChild(s);}
 }
