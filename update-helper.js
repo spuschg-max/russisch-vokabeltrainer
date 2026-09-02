@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.02.37';
+const BUILD='2026.09.02.38';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
@@ -19,6 +19,7 @@ function loadScript(src,key){
   return new Promise(resolve=>{const s=document.createElement('script');s.src=src+'?v='+BUILD;s.dataset.helper=key;s.async=false;s.onload=resolve;s.onerror=resolve;document.body.appendChild(s);});
 }
 async function loadHelpers(){
+  loadScript('stress-display.js','stress-display');
   loadScript('import-code.js','import-code');
   loadScript('voice-add.js','voice-add');
   loadScript('learning-ui.js','learning-ui');
