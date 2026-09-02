@@ -27,6 +27,7 @@ jobs:
           node --check speech-start-guard.js
           node --check voice-controller.js
           node --check voice-selfcheck.js
+          node --check wrong-study-pause.js
           node --check voice-add.js
           node --check learning-ui.js
           node --check motion-hints.js
@@ -54,6 +55,7 @@ jobs:
           test -s speech-start-guard.js
           test -s voice-controller.js
           test -s voice-selfcheck.js
+          test -s wrong-study-pause.js
           test -s voice-add.js
           test -s learning-ui.js
           test -s motion-hints.js
