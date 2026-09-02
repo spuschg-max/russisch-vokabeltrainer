@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import bz2
 import json
+import os
 import re
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CACHE = ROOT / '.cache' / 'tatoeba'
+CACHE = Path(os.environ.get('TATOEBA_CACHE', str(ROOT / '.cache' / 'tatoeba')))
 CACHE.mkdir(parents=True, exist_ok=True)
 
 URLS = {
@@ -69,7 +70,6 @@ def good_text(text, lang):
 def score_pair(de, ru):
     dw = len(WORD_RE.findall(de))
     rw = len(WORD_RE.findall(ru))
-    # Prefer short/medium everyday sentences and balanced translations.
     length = dw + rw
     balance = abs(dw - rw)
     punctuation_penalty = (de.count(';') + ru.count(';')) * 2
