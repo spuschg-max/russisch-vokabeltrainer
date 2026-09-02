@@ -34,6 +34,7 @@ jobs:
           node --check reveal-answer.js
           node --check problem-vocab.js
           node --check conjugation-drill.js
+          node --check conjugation-study.js
           node --check update-helper.js
           node --check exercise-packages.js
           node --check standard-pack.js
@@ -63,6 +64,7 @@ jobs:
           test -s reveal-answer.js
           test -s problem-vocab.js
           test -s conjugation-drill.js
+          test -s conjugation-study.js
           test -s update-helper.js
           test -s exercise-packages.js
           test -s standard-pack.js
