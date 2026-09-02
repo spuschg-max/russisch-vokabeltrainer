@@ -40,6 +40,7 @@ jobs:
           node --check sentence-voice-loop.js
           node --check conjugation-data-bridge.js
           node --check conjugation-drill.js
+          node --check conjugation-flow-fix.js
           node --check conjugation-study.js
           node --check update-helper.js
           node --check exercise-packages.js
@@ -76,6 +77,7 @@ jobs:
           test -s sentence-voice-loop.js
           test -s conjugation-data-bridge.js
           test -s conjugation-drill.js
+          test -s conjugation-flow-fix.js
           test -s conjugation-study.js
           test -s update-helper.js
           test -s exercise-packages.js
@@ -111,4 +113,7 @@ jobs:
           grep -q 'sentence-lazy-loader.js' service-worker.js
           grep -q 'sentence-voice-loop.js' update-helper.js
           grep -q 'sentence-voice-loop.js' service-worker.js
+          grep -q 'conjugation-flow-fix.js' update-helper.js
+          grep -q 'conjugation-flow-fix.js' service-worker.js
+          grep -q 'waitUntilSpeechEnds' conjugation-flow-fix.js
           grep -q 'DEFAULT_VOCABULARY' data.js
