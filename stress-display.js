@@ -5,7 +5,8 @@ const MAP=()=>window.RVT_STRESS_LEXICON||{};
 const CYR=/[А-Яа-яЁё]/;
 const WORD=/[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)*/g;
 const PERSONS=['я','ты','он/она','мы','вы','они'];
-let scheduled=false;
+const ACUTE='\u0301';
+let scheduled=false,mutating=false;
 
 function stripStress(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').normalize('NFC');}
 function key(s){return stripStress(s).toLocaleLowerCase().trim().replace(/\s+/g,' ');}
@@ -26,16 +27,31 @@ function accentize(text){
   const exact=lookup(raw);if(exact)return exact;
   return raw.replace(WORD,token=>lookup(token)||token);
 }
+function makeVisualFragment(stressed){
+  const frag=document.createDocumentFragment(),chars=Array.from(String(stressed||''));
+  let buffer='';
+  const flush=()=>{if(buffer){frag.appendChild(document.createTextNode(buffer));buffer='';}};
+  for(let i=0;i<chars.length;i++){
+    const ch=chars[i];
+    if(ch===ACUTE)continue;
+    if(chars[i+1]===ACUTE){
+      flush();
+      const span=document.createElement('span');span.className='rvt-stress-vowel';span.textContent=ch;frag.appendChild(span);i++;
+    }else buffer+=ch;
+  }
+  flush();return frag;
+}
 function accentTextNode(node){
-  if(!node||node.nodeType!==Node.TEXT_NODE||!CYR.test(node.nodeValue||''))return;
-  const next=accentize(node.nodeValue);if(next!==node.nodeValue)node.nodeValue=next;
+  if(!node||node.nodeType!==Node.TEXT_NODE||node.parentElement?.closest('.rvt-stress-vowel')||!CYR.test(node.nodeValue||''))return;
+  const raw=String(node.nodeValue||'');
+  const stressed=raw.includes(ACUTE)?raw:accentize(raw);
+  if(!stressed.includes(ACUTE))return;
+  node.replaceWith(makeVisualFragment(stressed));
 }
 function accentElement(el){
   if(!el)return;
-  if(el.children.length===0){
-    const next=accentize(el.textContent);if(next!==el.textContent)el.textContent=next;return;
-  }
-  const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach(accentTextNode);
+  const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode(node){return node.parentElement?.closest('.rvt-stress-vowel')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}});
+  const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach(accentTextNode);
 }
 function stressConjugationSolution(){
   const verb=document.getElementById('conjVerb'),person=document.getElementById('conjPerson'),solution=document.getElementById('conjSolution');
@@ -45,23 +61,33 @@ function stressConjugationSolution(){
     const words=JSON.parse(localStorage.getItem(STORAGE)||'{}').words||[];
     const word=words.find(w=>key(w?.ru)===key(verb.textContent));
     const forms=Array.isArray(word?.formsStress)?word.formsStress:[];
-    if(forms.length>=6&&forms[pi])solution.textContent=forms[pi];
+    if(forms.length>=6&&forms[pi])solution.textContent=stripStress(forms[pi]);
   }catch(e){}
 }
-function update(){
-  scheduled=false;
-  const ids=[
-    'promptText','solutionText','acceptedText','wordList','difficultList',
-    'conjVerb','conjSolution','conjPoolList','conjStudyList',
-    'speakModel','speakWordList',
-    'formPrompt','formSolution','formsList','sentenceSolution'
-  ];
-  ids.forEach(id=>accentElement(document.getElementById(id)));
-  stressConjugationSolution();
+function installStyles(){
+  if(document.getElementById('rvtStressStyles'))return;
+  const s=document.createElement('style');s.id='rvtStressStyles';s.textContent=`
+    .rvt-stress-vowel{position:relative;display:inline-block;line-height:inherit;vertical-align:baseline}
+    .rvt-stress-vowel::after{content:'';position:absolute;pointer-events:none;left:56%;top:-.06em;width:.055em;height:.24em;border-radius:999px;background:currentColor;transform:translateX(-50%) rotate(18deg);transform-origin:50% 100%}
+    .prompt-text .rvt-stress-vowel::after{top:-.04em;height:.22em}
+  `;document.head.appendChild(s);
 }
-function schedule(){if(scheduled)return;scheduled=true;requestAnimationFrame(update);}
+function update(){
+  if(mutating)return;scheduled=false;mutating=true;
+  try{
+    stressConjugationSolution();
+    const ids=[
+      'promptText','solutionText','acceptedText','wordList','difficultList',
+      'conjVerb','conjSolution','conjPoolList','conjStudyList',
+      'speakModel','speakWordList',
+      'formPrompt','formSolution','formsList','sentenceSolution'
+    ];
+    ids.forEach(id=>accentElement(document.getElementById(id)));
+  }finally{mutating=false;}
+}
+function schedule(){if(scheduled||mutating)return;scheduled=true;requestAnimationFrame(update);}
 function init(){
-  update();
+  installStyles();update();
   const observer=new MutationObserver(schedule);observer.observe(document.body,{childList:true,subtree:true,characterData:true});
   window.addEventListener('rvt-conjugations-enriched',schedule);
 }
