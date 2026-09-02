@@ -1,8 +1,10 @@
 (() => {
 'use strict';
+const STORAGE='russischVokabeltrainer.v2';
 const MAP=()=>window.RVT_STRESS_LEXICON||{};
 const CYR=/[А-Яа-яЁё]/;
 const WORD=/[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)*/g;
+const PERSONS=['я','ты','он/она','мы','вы','они'];
 let scheduled=false;
 
 function stripStress(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').normalize('NFC');}
@@ -35,6 +37,17 @@ function accentElement(el){
   }
   const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach(accentTextNode);
 }
+function stressConjugationSolution(){
+  const verb=document.getElementById('conjVerb'),person=document.getElementById('conjPerson'),solution=document.getElementById('conjSolution');
+  if(!verb||!person||!solution||!CYR.test(solution.textContent||''))return;
+  const pi=PERSONS.indexOf(stripStress(person.textContent).trim());if(pi<0)return;
+  try{
+    const words=JSON.parse(localStorage.getItem(STORAGE)||'{}').words||[];
+    const word=words.find(w=>key(w?.ru)===key(verb.textContent));
+    const forms=Array.isArray(word?.formsStress)?word.formsStress:[];
+    if(forms.length>=6&&forms[pi])solution.textContent=forms[pi];
+  }catch(e){}
+}
 function update(){
   scheduled=false;
   const ids=[
@@ -44,6 +57,7 @@ function update(){
     'formPrompt','formSolution','formsList'
   ];
   ids.forEach(id=>accentElement(document.getElementById(id)));
+  stressConjugationSolution();
 }
 function schedule(){if(scheduled)return;scheduled=true;requestAnimationFrame(update);}
 function init(){
