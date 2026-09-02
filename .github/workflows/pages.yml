@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Sprachsteuerung pro Karte stabilisieren
+        run: python3 scripts/patch_voice_cycle.py
       - name: Freien A1/A2- und B1-Standardwortschatz erzeugen
         run: python3 scripts/build_standard_vocab.py
       - name: Konjugationen und Betonungen ergänzen
