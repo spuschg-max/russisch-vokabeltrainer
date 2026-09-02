@@ -43,7 +43,7 @@ jobs:
           node --check exercise-packages.js
           node --check standard-pack.js
           node --check service-worker.js
-          python3 -m py_compile scripts/build_standard_vocab.py scripts/enrich_conjugations.py scripts/build_stress_lexicon.py scripts/build_sentence_bank.py
+          python3 -m py_compile scripts/build_standard_vocab.py scripts/enrich_conjugations.py scripts/build_stress_lexicon.py scripts/build_sentence_bank.py scripts/accent_sentence_bank.py scripts/annotate_sentence_cases.py
       - name: Pflichtdateien prüfen
         run: |
           test -s index.html
@@ -80,6 +80,8 @@ jobs:
           test -s scripts/enrich_conjugations.py
           test -s scripts/build_stress_lexicon.py
           test -s scripts/build_sentence_bank.py
+          test -s scripts/accent_sentence_bank.py
+          test -s scripts/annotate_sentence_cases.py
           grep -q 'id="learnCard"' index.html
           grep -q 'id="discardCurrent"' index.html
           grep -q 'id="installApp"' index.html
@@ -97,5 +99,8 @@ jobs:
           grep -q 'enrich_conjugations.py' .github/workflows/pages.yml
           grep -q 'build_stress_lexicon.py' .github/workflows/pages.yml
           grep -q 'build_sentence_bank.py' .github/workflows/pages.yml
+          grep -q 'accent_sentence_bank.py' .github/workflows/pages.yml
+          grep -q 'annotate_sentence_cases.py' .github/workflows/pages.yml
+          grep -q 'id="sentenceCase"' sentence-drill.js
           grep -q 'sentence-bank-data.js' service-worker.js
           grep -q 'DEFAULT_VOCABULARY' data.js
