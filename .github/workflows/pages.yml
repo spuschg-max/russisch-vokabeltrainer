@@ -37,6 +37,8 @@ jobs:
         env:
           TATOEBA_CACHE: /tmp/rvt-tatoeba
         run: python3 scripts/build_sentence_bank.py
+      - name: Satzlösungen mit Betonung versehen
+        run: python3 scripts/accent_sentence_bank.py
       - name: Pages konfigurieren
         uses: actions/configure-pages@v5
         with:
