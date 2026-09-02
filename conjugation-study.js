@@ -29,13 +29,19 @@ function parseWordForms(w){
   const raw=String(w?.forms||'').trim();if(!raw)return[];
   return raw.split(';').map(x=>{const i=x.indexOf('=');return accentNotation((i>=0?x.slice(0,i):x).trim())}).filter(Boolean).slice(0,6);
 }
+function parseStressForms(w){
+  const raw=w?.formsStress;
+  if(Array.isArray(raw))return raw.map(accentNotation).map(x=>String(x||'').trim()).filter(Boolean).slice(0,6);
+  if(typeof raw==='string'&&raw.trim())return raw.split(';').map(accentNotation).map(x=>x.trim()).filter(Boolean).slice(0,6);
+  return[];
+}
 function currentData(){
   const lemma=String($('#conjVerb')?.textContent||'').trim();if(!lemma)return null;
-  const key=norm(lemma),w=mainWords().find(x=>norm(x?.ru)===key),fromWord=parseWordForms(w);
+  const key=norm(lemma),w=mainWords().find(x=>norm(x?.ru)===key),fromWord=parseWordForms(w),fromStress=parseStressForms(w);
   const plain=fromWord.length===6?fromWord:(FALLBACK[key]||[]);
   if(plain.length!==6)return null;
-  const stressed=(STRESSED[key]||plain).map(accentNotation);
-  return {lemma,w,forms:stressed};
+  const stressed=(fromStress.length===6?fromStress:(STRESSED[key]||plain)).map(accentNotation);
+  return {lemma,w,forms:stressed,aspect:String(w?.aspect||'')};
 }
 function micWasListening(){return $('#conjMic')?.textContent?.trim()==='●';}
 function pauseMic(){const b=$('#conjMic');if(micWasListening()&&b){try{b.click()}catch(e){}}}
@@ -71,17 +77,24 @@ function speakAll(){
 function render(){
   const box=$('#conjStudyList'),d=currentData();if(!box)return;
   if(!d){box.innerHTML='<p class="conj-study-empty">Für dieses Verb sind noch keine sechs Formen hinterlegt.</p>';return;}
+  const tense=$('#conjStudyTense');
+  if(tense){
+    tense.textContent=d.aspect==='perfective'
+      ?'Vollendetes Verb: Die sechs Personenformen stehen im einfachen Futur.'
+      :'Unvollendetes Verb: Die sechs Personenformen stehen im Präsens.';
+  }
   box.innerHTML=d.forms.map((f,i)=>`<div class="conj-study-row"><span class="conj-study-person">${PERSONS[i]}</span><strong>${esc(f)}</strong><button type="button" class="conj-study-one" data-i="${i}" aria-label="${esc(PERSONS[i])} vorlesen">🔊</button></div>`).join('');
   box.querySelectorAll('.conj-study-one').forEach(b=>b.addEventListener('click',()=>speakOne(d.forms[Number(b.dataset.i)])));
 }
 function inject(){
   if($('#conjStudy'))return;const card=$('#conjCard');if(!card)return false;
-  const details=document.createElement('details');details.id='conjStudy';details.className='panel conj-study';details.innerHTML=`<summary>📖 Formen ansehen & hören</summary><div class="conj-study-inner"><p class="conj-study-note">Alle sechs Formen mit Betonungszeichen. Einzelne Form mit 🔊 oder die ganze Reihe langsam nacheinander.</p><div id="conjStudyList"></div><button id="conjSpeakAll" class="secondary conj-speak-all" type="button">▶ Los – alle sechs langsam vorlesen</button></div>`;
+  const details=document.createElement('details');details.id='conjStudy';details.className='panel conj-study';details.innerHTML=`<summary>📖 Formen ansehen & hören</summary><div class="conj-study-inner"><p class="conj-study-note">Alle sechs Formen mit Betonungszeichen. Einzelne Form mit 🔊 oder die ganze Reihe langsam nacheinander.</p><p id="conjStudyTense" class="conj-study-tense"></p><div id="conjStudyList"></div><button id="conjSpeakAll" class="secondary conj-speak-all" type="button">▶ Los – alle sechs langsam vorlesen</button></div>`;
   card.parentNode.insertBefore(details,card.nextSibling);
-  const style=document.createElement('style');style.textContent=`.conj-study{margin-top:14px}.conj-study summary{cursor:pointer;font-weight:900;font-size:15px}.conj-study-inner{padding-top:12px}.conj-study-note{margin:0 0 10px;color:var(--muted);font-size:13px}.conj-study-row{display:grid;grid-template-columns:78px 1fr 44px;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}.conj-study-row:last-child{border-bottom:0}.conj-study-person{font-weight:800;color:var(--muted)}.conj-study-row strong{font-family:Georgia,'Times New Roman',serif;font-size:23px}.conj-study-one{border:1px solid var(--line);background:var(--surface);border-radius:9px;min-height:38px;font-size:18px}.conj-speak-all{width:100%;margin-top:14px;font-weight:900}.conj-speak-all.playing{border-color:#d18412}.conj-study-empty{color:var(--muted)}@media(max-width:650px){.conj-study-row{grid-template-columns:68px 1fr 42px}.conj-study-row strong{font-size:22px}}`;document.head.appendChild(style);
+  const style=document.createElement('style');style.textContent=`.conj-study{margin-top:14px}.conj-study summary{cursor:pointer;font-weight:900;font-size:15px}.conj-study-inner{padding-top:12px}.conj-study-note,.conj-study-tense{margin:0 0 10px;color:var(--muted);font-size:13px}.conj-study-tense{font-weight:700}.conj-study-row{display:grid;grid-template-columns:78px 1fr 44px;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}.conj-study-row:last-child{border-bottom:0}.conj-study-person{font-weight:800;color:var(--muted)}.conj-study-row strong{font-family:Georgia,'Times New Roman',serif;font-size:23px}.conj-study-one{border:1px solid var(--line);background:var(--surface);border-radius:9px;min-height:38px;font-size:18px}.conj-speak-all{width:100%;margin-top:14px;font-weight:900}.conj-speak-all.playing{border-color:#d18412}.conj-study-empty{color:var(--muted)}@media(max-width:650px){.conj-study-row{grid-template-columns:68px 1fr 42px}.conj-study-row strong{font-size:22px}}`;document.head.appendChild(style);
   details.addEventListener('toggle',()=>{if(details.open)render();else if(speakingAll)stopAll()});
   $('#conjSpeakAll').addEventListener('click',speakAll);
   const verb=$('#conjVerb');if(verb)new MutationObserver(()=>{if(speakingAll)stopAll();if(details.open)render()}).observe(verb,{childList:true,subtree:true,characterData:true});
+  window.addEventListener('rvt-conjugations-enriched',()=>{if(details.open)render()});
   render();return true;
 }
 let tries=0;const timer=setInterval(()=>{tries++;if(inject()||tries>40)clearInterval(timer)},250);
