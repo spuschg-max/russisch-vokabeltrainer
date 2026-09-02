@@ -49,11 +49,11 @@ def build_form_masks():
             rows += 1
             for field, case in case_fields:
                 bit = CASE_BITS[case]
-                for token in TOKEN.findall(str(row.get(field, '') or '')):
+                for token in TOKEN.findall(str(row.get(field, '') or '').replace(COMBINING, '')):
                     key = plain(token)
                     if key:
                         forms[key] |= bit
-    # Keep only forms that point to exactly one of the five target cases globally.
+    # Nur Wortformen behalten, die global eindeutig genau einem Zielkasus zugeordnet sind.
     unique = {form: mask for form, mask in forms.items() if mask and (mask & (mask - 1)) == 0}
     print(f'Kasusformen: {len(unique)} eindeutige Wortformen aus {rows} Datensätzen')
     return unique
@@ -71,11 +71,22 @@ def read_bank():
     return pairs, meta
 
 
-def sentence_mask(text, forms):
+def sentence_cases(text, forms):
     mask = 0
-    for token in TOKEN.findall(str(text or '')):
-        mask |= forms.get(plain(token), 0)
-    return mask
+    first_example = {}
+    # Betonungszeichen entfernen, bevor Wörter tokenisiert werden.
+    clean = str(text or '').replace(COMBINING, '')
+    for token in TOKEN.findall(clean):
+        key = plain(token)
+        bit = forms.get(key, 0)
+        if not bit:
+            continue
+        mask |= bit
+        for case, case_bit in CASE_BITS.items():
+            if bit == case_bit and case not in first_example:
+                first_example[case] = token
+    evidence = [[case, first_example[case]] for case in CASE_BITS if case in first_example]
+    return mask, evidence
 
 
 def main():
@@ -88,11 +99,15 @@ def main():
     for pair in pairs:
         if not isinstance(pair, list) or len(pair) < 2:
             continue
-        mask = sentence_mask(pair[1], forms)
+        mask, evidence = sentence_cases(pair[1], forms)
         if len(pair) >= 3:
             pair[2] = mask
         else:
             pair.append(mask)
+        if len(pair) >= 4:
+            pair[3] = evidence
+        else:
+            pair.append(evidence)
         if mask:
             tagged += 1
         for case, bit in CASE_BITS.items():
