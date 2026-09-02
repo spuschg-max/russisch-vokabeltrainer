@@ -15,51 +15,71 @@ function saveState(state){
 }
 function progressFor(state,id){return state.progress?.[id]||{};}
 function wordIndex(state,id){return (state.words||[]).findIndex(w=>w.id===id);}
+function currentDirection(){return /russisch/i.test($('#promptLabel')?.textContent||'')?'ru-de':'de-ru';}
+function todayKey(){const d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${d.getFullYear()}-${m}-${day}`;}
 function selectedWord(state){
   const words=Array.isArray(state.words)?state.words:[],turn=Number(state.sessionTurn||0),t=Date.now();
-  const due=words.filter(w=>{const p=progressFor(state,w.id);return Number(p.seen||0)>0&&!p.active&&!p.postponed&&Number(p.reviewStage||0)>0&&Number(p.due||0)<=t;}).sort((a,b)=>Number(progressFor(state,a.id).due||0)-Number(progressFor(state,b.id).due||0)||wordIndex(state,a.id)-wordIndex(state,b.id));
-  if(due.length)return due[0];
-  const active=words.filter(w=>{const p=progressFor(state,w.id);return !!p.active&&!p.postponed&&Number(p.nextTurn||0)<=turn;}).sort((a,b)=>Number(progressFor(state,a.id).nextTurn||0)-Number(progressFor(state,b.id).nextTurn||0)||wordIndex(state,a.id)-wordIndex(state,b.id));
-  if(active.length)return active[0];
   const prompt=($('#promptText')?.textContent||'').trim(),label=$('#promptLabel')?.textContent||'';
   if(/russisch/i.test(label)){const m=words.filter(w=>String(w.ru||'').trim()===prompt);if(m.length===1)return m[0];}
   if(/deutsch/i.test(label)){const m=words.filter(w=>String(w.de||'').trim()===prompt);if(m.length===1)return m[0];}
-  return null;
+  const due=words.filter(w=>{const p=progressFor(state,w.id);return Number(p.seen||0)>0&&!p.active&&!p.postponed&&Number(p.reviewStage||0)>0&&Number(p.due||0)<=t;}).sort((a,b)=>Number(progressFor(state,a.id).due||0)-Number(progressFor(state,b.id).due||0)||wordIndex(state,a.id)-wordIndex(state,b.id));
+  if(due.length)return due[0];
+  const active=words.filter(w=>{const p=progressFor(state,w.id);return !!p.active&&!p.postponed&&Number(p.nextTurn||0)<=turn;}).sort((a,b)=>Number(progressFor(state,a.id).nextTurn||0)-Number(progressFor(state,b.id).nextTurn||0)||wordIndex(state,a.id)-wordIndex(state,b.id));
+  return active[0]||null;
 }
-function toast(msg){const t=$('#toast');if(!t)return;t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+function toast(msg){const t=$('#toast');if(!t)return;t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 function ensureProgress(state,id){state.progress=state.progress||{};state.progress[id]=state.progress[id]||{level:0,due:0,seen:0,correct:0,wrong:0,hard:0,lapses:0,lastReview:0,lastResult:null,active:false,streak:0,nextTurn:0,reviewStage:0,postponed:false,dirStreak:{'ru-de':0,'de-ru':0}};return state.progress[id];}
-function enforceDaily(id){
-  const state=loadState(),p=state.progress?.[id];if(!p?.problem)return;
-  if(!p.active&&Number(p.level||0)>=5){p.reviewStage=1;p.due=Date.now()+DAY;p.nextTurn=Number(state.sessionTurn||0);saveState(state);}
+function makeDailyIfSecure(state,p){
+  if(!p?.problem||p.active||Number(p.level||0)<5)return false;
+  p.reviewStage=1;p.due=Date.now()+DAY;p.nextTurn=Number(state.sessionTurn||0);return true;
 }
 function toggleProblem(){
   const state=loadState(),w=selectedWord(state);if(!w)return;
   const p=ensureProgress(state,w.id);p.problem=!p.problem;
+  p.problemDailyDate='';p.problemDailyDone=[];
   if(p.problem){
     if(!p.active&&Number(p.level||0)>=5){p.reviewStage=1;p.due=Date.now()+DAY;p.nextTurn=Number(state.sessionTurn||0);}
-    toast('Problemvokabel markiert – nach dem sicheren Lernen täglich wiederholen');
+    toast('Problemvokabel markiert – täglich in beiden Richtungen wiederholen');
   }else{
     if(!p.active&&Number(p.level||0)>=5){p.reviewStage=Math.max(1,Number(p.reviewStage||1));p.due=Date.now()+7*DAY;}
     toast('Problemstatus entfernt – wieder normaler Lernabstand');
   }
   saveState(state);render();
 }
+function finishProblemAction(id,dir,wasDailyReview,wholeWordKnown=false){
+  const state=loadState(),p=state.progress?.[id];if(!p?.problem)return;
+  if(wholeWordKnown){
+    p.problemDailyDate='';p.problemDailyDone=[];makeDailyIfSecure(state,p);saveState(state);render();return;
+  }
+  if(!wasDailyReview){if(makeDailyIfSecure(state,p)){saveState(state);}render();return;}
+  if(p.active){p.problemDailyDate='';p.problemDailyDone=[];saveState(state);render();return;}
+  const day=todayKey();if(p.problemDailyDate!==day){p.problemDailyDate=day;p.problemDailyDone=[];}
+  const done=new Set(Array.isArray(p.problemDailyDone)?p.problemDailyDone:[]);done.add(dir);p.problemDailyDone=[...done];
+  if(done.size<2){
+    const other=dir==='ru-de'?'de-ru':'ru-de';
+    p.dirStreak=p.dirStreak||{'ru-de':5,'de-ru':5};p.dirStreak[dir]=5;p.dirStreak[other]=Math.min(4,Number(p.dirStreak[other]??5));
+    p.active=false;p.level=5;p.reviewStage=1;p.due=Date.now()-1000;p.nextTurn=Number(state.sessionTurn||0);
+    saveState(state);toast('Problemvokabel: Jetzt noch die Gegenrichtung');setTimeout(()=>location.reload(),260);return;
+  }
+  p.dirStreak=p.dirStreak||{};p.dirStreak['ru-de']=5;p.dirStreak['de-ru']=5;p.active=false;p.level=5;p.reviewStage=1;p.due=Date.now()+DAY;p.nextTurn=Number(state.sessionTurn||0);p.problemDailyDone=[];
+  saveState(state);toast('Problemvokabel heute in beiden Richtungen wiederholt');setTimeout(()=>location.reload(),260);
+}
 function render(){
   const b=$('#problemCurrent');if(!b)return;
   const state=loadState(),w=selectedWord(state),on=!!(w&&state.progress?.[w.id]?.problem);
   b.classList.toggle('problem-active',on);b.setAttribute('aria-pressed',on?'true':'false');
   b.textContent=on?'⚠ Problem: täglich':'⚠ Problemvokabel';
-  b.title=on?'Problemstatus ausschalten und wieder normalen Lernabstand verwenden':'Diese Vokabel nach dem sicheren Lernen täglich wiederholen';
+  b.title=on?'Problemstatus ausschalten und wieder normalen Lernabstand verwenden':'Diese Vokabel täglich in Deutsch→Russisch und Russisch→Deutsch wiederholen';
   let info=$('#problemVocabInfo');
   if(!info){info=document.createElement('small');info.id='problemVocabInfo';info.className='problem-vocab-info';($('#activePoolInfo')||$('#cardTag'))?.insertAdjacentElement('afterend',info);}
-  if(info){info.textContent=on?'⚠ Problemvokabel: tägliche Wiederholung':'';info.classList.toggle('hidden',!on);}
+  if(info){info.textContent=on?'⚠ Problemvokabel: täglich in beiden Richtungen':'';info.classList.toggle('hidden',!on);}
   decorateWordList(state);
 }
 function decorateWordList(state=loadState()){
   document.querySelectorAll('.word-row[data-id]').forEach(row=>{
     const on=!!state.progress?.[row.dataset.id]?.problem;row.classList.toggle('problem-word-row',on);
     let badge=row.querySelector('.problem-word-badge');
-    if(on&&!badge){badge=document.createElement('span');badge.className='problem-word-badge';badge.textContent='⚠ täglich';row.appendChild(badge);}else if(!on&&badge)badge.remove();
+    if(on&&!badge){badge=document.createElement('span');badge.className='problem-word-badge';badge.textContent='⚠ täglich · beide Richtungen';row.appendChild(badge);}else if(on&&badge)badge.textContent='⚠ täglich · beide Richtungen';else if(!on&&badge)badge.remove();
   });
 }
 function installButton(){
@@ -82,8 +102,10 @@ function install(){
   const list=$('#wordList');if(list)new MutationObserver(()=>decorateWordList()).observe(list,{childList:true,subtree:true});
   document.addEventListener('click',e=>{
     const action=e.target?.closest?.('.rating,#masterCurrent');if(!action)return;
-    const state=loadState(),w=selectedWord(state);if(!w||!state.progress?.[w.id]?.problem)return;const id=w.id;
-    setTimeout(()=>{enforceDaily(id);render();},120);
+    const state=loadState(),w=selectedWord(state);if(!w)return;const p=state.progress?.[w.id];if(!p?.problem)return;
+    const id=w.id,dir=currentDirection(),wholeWordKnown=action.id==='masterCurrent';
+    const wasDailyReview=!p.active&&Number(p.reviewStage||0)>0&&Number(p.due||0)<=Date.now();
+    setTimeout(()=>finishProblemAction(id,dir,wasDailyReview,wholeWordKnown),150);
   },true);
 }
 setTimeout(install,1050);
