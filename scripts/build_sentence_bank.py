@@ -15,7 +15,7 @@ URLS = {
     'rus': 'https://downloads.tatoeba.org/exports/per_language/rus/rus_sentences_detailed.tsv.bz2',
     'links': 'https://downloads.tatoeba.org/exports/per_language/deu/deu-rus_links.tsv.bz2',
 }
-MAX_PAIRS = 24000
+MAX_PAIRS = 80000
 WORD_RE = re.compile(r"[A-Za-zÄÖÜäöüßА-Яа-яЁё]+(?:[-’'][A-Za-zÄÖÜäöüßА-Яа-яЁё]+)*")
 BAD_RE = re.compile(r'https?://|www\.|@|\d{3,}|[_{}<>]|\\')
 
