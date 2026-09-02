@@ -32,12 +32,19 @@ def main():
         text,
         "function markSpeechStart(){ownSpeech=true;window.__rvtAppSpeaking=true;clearSubmit();speechDetected=false;resultSegments.clear();cardTranscript='';}\nfunction markSpeechEnd(){ownSpeech=false;window.__rvtAppSpeaking=false;suppressUntil=Date.now()+380;resetAnswerCapture(true);if(answerReady()&&prefs.autoMic)setStatus(statusListening(),recognitionRunning||recognitionStarting);}",
         "function clearCardCycle(){clearTimeout(cardCycleTimer);cardCycleTimer=null;}\n"
-        "function startListeningForCard(serial,delay=0){\n"
+        "function startListeningForCard(serial,delay=0,waitSince=Date.now()){\n"
         "  clearCardCycle();\n"
         "  cardCycleTimer=setTimeout(()=>{\n"
         "    cardCycleTimer=null;\n"
         "    if(serial!==cardSerial||!prefs.autoMic||userStopped||document.visibilityState==='hidden'||!answerReady())return;\n"
-        "    if(appSpeaking()||Date.now()<suppressUntil){startListeningForCard(serial,220);return;}\n"
+        "    if(appSpeaking()||Date.now()<suppressUntil){\n"
+        "      if(Date.now()-waitSince>4500){\n"
+        "        try{speechSynthesis.cancel();speechSynthesis.resume();}catch(e){}\n"
+        "        ownSpeech=false;window.__rvtAppSpeaking=false;suppressUntil=Date.now()+120;\n"
+        "        startListeningForCard(serial,180,Date.now());return;\n"
+        "      }\n"
+        "      startListeningForCard(serial,220,waitSince);return;\n"
+        "    }\n"
         "    stopRecognition(false);userStopped=false;acceptingAnswer=true;resetAnswerCapture(true);\n"
         "    if(ensureRecognition(false))setStatus(statusListening(),true);\n"
         "  },delay);\n"
@@ -91,10 +98,11 @@ def main():
     setTimeout(()=>{
       if(serial!==cardSerial||!answerReady())return;
       speak($('#promptText')?.textContent?.trim()||'',promptLang());
-      // iOS liefert onstart/onend nicht immer zuverlässig. Dieser Fallback
-      // versucht erst nach 2,4 s zu öffnen und wartet dann zusätzlich so lange,
-      // wie speechSynthesis tatsächlich noch spricht oder etwas in der Queue hat.
-      if(prefs.autoMic)startListeningForCard(serial,2400);
+      // Wenn iOS die automatische Ausgabe blockiert, existiert keine laufende
+      // Sprachausgabe. Dann wird das Mikrofon bereits nach 350 ms freigegeben.
+      // Falls Safari einen Sprachauftrag fälschlich dauerhaft als pending meldet,
+      // erzwingt startListeningForCard nach 4,5 s einen sauberen Abbruch.
+      if(prefs.autoMic)startListeningForCard(serial,350);
     },100);
   }else if(prefs.autoMic)startListeningForCard(serial,120);
   else setStatus('Mikrofon-Automatik ist aus.');
@@ -117,12 +125,12 @@ def main():
         'install order',
     )
 
-    marker = "// RVT_CARD_SCOPED_VOICE_CYCLE_V3_IOS_SYNTHESIS_GUARD"
+    marker = "// RVT_CARD_SCOPED_VOICE_CYCLE_V4_IOS_STUCK_QUEUE_GUARD"
     if marker not in text:
         text = text.replace("'use strict';", "'use strict';\n" + marker, 1)
 
     PATH.write_text(text, encoding='utf-8')
-    print('voice-controller.js: Kartenzyklus V3 – iOS-Sprachausgabe blockiert Mikrofon bis speechSynthesis wirklich beendet ist')
+    print('voice-controller.js: Kartenzyklus V4 – blockierte iOS-Sprachausgabe kann Mikrofon nicht mehr endlos sperren')
 
 
 if __name__ == '__main__':
