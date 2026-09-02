@@ -38,7 +38,7 @@ function accentElement(el){
 function update(){
   scheduled=false;
   const ids=[
-    'promptText','solutionText','acceptedText',
+    'promptText','solutionText','acceptedText','wordList','difficultList',
     'conjVerb','conjSolution','conjPoolList','conjStudyList',
     'speakModel','speakWordList',
     'formPrompt','formSolution','formsList'
