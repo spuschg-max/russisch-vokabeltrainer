@@ -35,6 +35,7 @@ jobs:
           node --check problem-vocab.js
           node --check stress-lexicon-data.js
           node --check stress-display.js
+          node --check sentence-lazy-loader.js
           node --check sentence-drill.js
           node --check conjugation-data-bridge.js
           node --check conjugation-drill.js
@@ -69,6 +70,7 @@ jobs:
           test -s problem-vocab.js
           test -s stress-lexicon-data.js
           test -s stress-display.js
+          test -s sentence-lazy-loader.js
           test -s sentence-drill.js
           test -s conjugation-data-bridge.js
           test -s conjugation-drill.js
@@ -102,5 +104,6 @@ jobs:
           grep -q 'accent_sentence_bank.py' .github/workflows/pages.yml
           grep -q 'annotate_sentence_cases.py' .github/workflows/pages.yml
           grep -q 'id="sentenceCase"' sentence-drill.js
-          grep -q 'sentence-bank-data.js' service-worker.js
+          grep -q 'sentence-lazy-loader.js' update-helper.js
+          grep -q 'sentence-lazy-loader.js' service-worker.js
           grep -q 'DEFAULT_VOCABULARY' data.js
