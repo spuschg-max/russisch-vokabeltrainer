@@ -29,12 +29,14 @@ function render(){
   b.textContent=unlocked?'🔊 Wort vorlesen':'🔊 Sprache starten';
   b.title=unlocked?'Aktuelle Vokabel noch einmal vorlesen':'iOS-Sprachausgabe einmal bewusst freigeben';
 }
-function nativeSpeak(u){if(!u||muted()||!originalSpeak)return false;try{speechSynthesis.resume();originalSpeak(signalUtterance(u));return true}catch(e){return false}}
+function nativeSpeak(u){if(!u||muted()||!originalSpeak)return false;try{originalSpeak(signalUtterance(u));return true}catch(e){return false}}
 function unlockAndSpeak(){
   if(muted()||!originalSpeak)return;
   const text=currentPrompt();if(!text)return;
   unlocked=true;gestureUntil=performance.now()+1200;render();
-  try{speechSynthesis.cancel();speechSynthesis.resume();}catch(e){}
+  // resume() nur innerhalb dieser bewussten Benutzeraktion; kein automatischer
+  // Kartenwechsel darf Safari damit mehr blockieren.
+  try{speechSynthesis.resume();}catch(e){}
   nativeSpeak(makeUtterance(text,langForPrompt()));
 }
 function gesture(){gestureUntil=performance.now()+700;}
@@ -44,13 +46,11 @@ function install(){
     if(!u)return;
     const signalled=signalUtterance(u);
     if(muted())return originalSpeak(signalled);
-    // Auf iOS darf ein blockierter automatischer Sprachauftrag NICHT bei jedem
-    // späteren Fingertipp erneut in die Warteschlange gelegt werden. Vor der
-    // ersten echten Benutzerfreigabe wird der automatische Versuch deshalb
-    // einfach verworfen. Ein Fingertipp erlaubt nur Sprachaufrufe, die durch
-    // genau diese Benutzeraktion ausgelöst werden; er spielt nichts nachträglich ab.
+    // Vor der ersten echten Benutzerfreigabe werden automatische Sprachaufträge
+    // verworfen. Wichtig: Hier KEIN resume()/cancel() – diese Aufrufe können auf
+    // iOS den JS-Hauptthread in einem verklemmten Sprachzustand festhalten.
     if(!unlocked&&performance.now()>gestureUntil){render();return;}
-    try{speechSynthesis.resume();return originalSpeak(signalled);}catch(e){render();}
+    try{return originalSpeak(signalled);}catch(e){render();}
   };
   try{speechSynthesis.getVoices()}catch(e){}
   speechSynthesis.addEventListener?.('voiceschanged',()=>{try{speechSynthesis.getVoices()}catch(e){}});
