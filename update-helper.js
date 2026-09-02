@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.02.40';
+const BUILD='2026.09.02.41';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
@@ -20,6 +20,8 @@ function loadScript(src,key){
 }
 async function loadHelpers(){
   loadScript('stress-display.js','stress-display');
+  loadScript('sentence-bank-data.js','sentence-bank-data');
+  loadScript('sentence-drill.js','sentence-drill');
   loadScript('import-code.js','import-code');
   loadScript('voice-add.js','voice-add');
   loadScript('learning-ui.js','learning-ui');
