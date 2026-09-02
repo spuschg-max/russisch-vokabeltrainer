@@ -54,7 +54,7 @@ function update(){
     'promptText','solutionText','acceptedText','wordList','difficultList',
     'conjVerb','conjSolution','conjPoolList','conjStudyList',
     'speakModel','speakWordList',
-    'formPrompt','formSolution','formsList'
+    'formPrompt','formSolution','formsList','sentenceSolution'
   ];
   ids.forEach(id=>accentElement(document.getElementById(id)));
   stressConjugationSolution();
