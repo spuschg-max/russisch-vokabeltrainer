@@ -29,7 +29,6 @@ def convert_stress(value):
     if not text or not CYRILLIC.search(text) or "'" not in text:
         return None
     stressed = STRESS_AFTER_VOWEL.sub(lambda m: m.group(1) + COMBINING, text)
-    # Reject apostrophes that were not OpenRussian stress markers.
     if "'" in stressed:
         return None
     return stressed
@@ -59,13 +58,14 @@ def build():
     for url in OPENRUSSIAN:
         text = fetch(url)
         reader = csv.DictReader(io.StringIO(text), delimiter='\t')
+        if 'accented' not in (reader.fieldnames or []):
+            raise RuntimeError(f'OpenRussian-Spalte accented fehlt in {url}')
         for row in reader:
             rows += 1
-            # The accented lemma and all inflected Russian fields in OpenRussian
-            # use the same apostrophe-after-vowel stress notation. Looking at all
-            # cells also gives us stressed conjugated/declined forms for display.
-            for value in row.values():
-                add_candidate(candidates, value)
+            # Für die normale Vokabelanzeige brauchen wir die betonte Grundform.
+            # Alle hunderttausenden Flexionsformen würden die iPhone-App unnötig
+            # um viele Megabyte vergrößern. Verbformen werden separat behandelt.
+            add_candidate(candidates, row.get('accented', ''))
     unique = {k: next(iter(values)) for k, values in candidates.items() if len(values) == 1}
     ambiguous = sum(1 for values in candidates.values() if len(values) > 1)
     payload = 'window.RVT_STRESS_LEXICON=' + json.dumps(unique, ensure_ascii=False, separators=(',', ':')) + ';\n'
@@ -75,12 +75,13 @@ def build():
         'entries': len(unique),
         'ambiguousOmitted': ambiguous,
         'rowsRead': rows,
+        'scope': 'lemmas',
     }, ensure_ascii=False, separators=(',', ':')) + ';\n'
     out = ROOT / 'stress-lexicon-data.js'
     out.write_text(payload, encoding='utf-8')
-    print(f'Stresslexikon: {len(unique)} eindeutige Formen; {ambiguous} mehrdeutige Formen ausgelassen; {rows} Quelldatensätze gelesen')
-    if len(unique) < 10000:
-        raise RuntimeError('Zu wenige Betonungsformen erzeugt; OpenRussian-Daten prüfen.')
+    print(f'Stresslexikon: {len(unique)} eindeutige Grundformen; {ambiguous} mehrdeutige Grundformen ausgelassen; {rows} Quelldatensätze gelesen')
+    if len(unique) < 20000:
+        raise RuntimeError('Zu wenige Betonungsgrundformen erzeugt; OpenRussian-Daten prüfen.')
 
 
 if __name__ == '__main__':
