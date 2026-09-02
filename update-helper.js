@@ -1,13 +1,13 @@
 (() => {
 'use strict';
-const BUILD='2026.09.02.53';
+const BUILD='2026.09.02.54';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 function showVersion(){const install=$('#installPanel');if(!install||$('#appBuildInfo'))return;const p=document.createElement('p');p.id='appBuildInfo';p.className='app-build-info';p.textContent=`App-Version ${BUILD} · Updates werden beim Öffnen automatisch geprüft.`;install.appendChild(p);const s=document.createElement('style');s.textContent='.app-build-info{margin-top:10px!important;font-size:12px;color:var(--muted)}';document.head.appendChild(s)}
 async function checkForUpdate(force=false){if(!('serviceWorker'in navigator))return;const t=Date.now();if(!force&&t-lastCheck<60000)return;lastCheck=t;try{const reg=await navigator.serviceWorker.ready;await reg.update()}catch(e){}}
 function loadScript(src,key){const existing=document.querySelector(`script[data-helper="${key}"]`);if(existing)return Promise.resolve();return new Promise(resolve=>{const s=document.createElement('script');s.src=src+'?v='+BUILD;s.dataset.helper=key;s.async=false;s.onload=resolve;s.onerror=resolve;document.body.appendChild(s)})}
 async function loadHelpers(){
-  // Sprachmodus zuerst: Die große Satzbank darf den normalen Vokabelstart nicht blockieren.
+  // Sprachkern immer zuerst laden; Zusatzübungen dürfen ihn nie blockieren.
   await loadScript('audio-toggle.js','audio-toggle');
   await loadScript('speech-unlock.js','speech-unlock');
   await loadScript('speech-tolerance.js','speech-tolerance');
@@ -28,8 +28,7 @@ async function loadHelpers(){
   await loadScript('conjugation-flow-fix.js','conjugation-flow-fix');
   loadScript('conjugation-study.js','conjugation-study');
 
-  // Nur die kleine Satz-Oberfläche laden. Die 80.000 Satzpaare werden erst
-  // beim Öffnen von „Sätze“ nachgeladen und belasten die Vokabelrunde nicht.
+  // Satzbank bleibt lazy und kann den normalen Sprachmodus nicht verzögern.
   await loadScript('sentence-lazy-loader.js','sentence-lazy-loader');
   await loadScript('sentence-drill.js','sentence-drill');
   await loadScript('sentence-voice-loop.js','sentence-voice-loop');
