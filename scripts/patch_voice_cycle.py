@@ -23,6 +23,13 @@ def main():
 
     text = replace_once(
         text,
+        "function appSpeaking(){return ownSpeech||!!window.__rvtAppSpeaking;}",
+        "function appSpeaking(){try{return ownSpeech||!!window.__rvtAppSpeaking||!!speechSynthesis.speaking||!!speechSynthesis.pending;}catch(e){return ownSpeech||!!window.__rvtAppSpeaking;}}",
+        'actual speech synthesis guard',
+    )
+
+    text = replace_once(
+        text,
         "function markSpeechStart(){ownSpeech=true;window.__rvtAppSpeaking=true;clearSubmit();speechDetected=false;resultSegments.clear();cardTranscript='';}\nfunction markSpeechEnd(){ownSpeech=false;window.__rvtAppSpeaking=false;suppressUntil=Date.now()+380;resetAnswerCapture(true);if(answerReady()&&prefs.autoMic)setStatus(statusListening(),recognitionRunning||recognitionStarting);}",
         "function clearCardCycle(){clearTimeout(cardCycleTimer);cardCycleTimer=null;}\n"
         "function startListeningForCard(serial,delay=0){\n"
@@ -30,7 +37,7 @@ def main():
         "  cardCycleTimer=setTimeout(()=>{\n"
         "    cardCycleTimer=null;\n"
         "    if(serial!==cardSerial||!prefs.autoMic||userStopped||document.visibilityState==='hidden'||!answerReady())return;\n"
-        "    if(appSpeaking()){startListeningForCard(serial,180);return;}\n"
+        "    if(appSpeaking()||Date.now()<suppressUntil){startListeningForCard(serial,220);return;}\n"
         "    stopRecognition(false);userStopped=false;acceptingAnswer=true;resetAnswerCapture(true);\n"
         "    if(ensureRecognition(false))setStatus(statusListening(),true);\n"
         "  },delay);\n"
@@ -41,8 +48,8 @@ def main():
         "  setStatus('Vokabel wird vorgelesen …');\n"
         "}\n"
         "function markSpeechEnd(){\n"
-        "  ownSpeech=false;window.__rvtAppSpeaking=false;suppressUntil=Date.now()+420;resetAnswerCapture(true);\n"
-        "  if(answerReady()&&prefs.autoMic&&!userStopped)startListeningForCard(cardSerial,430);\n"
+        "  ownSpeech=false;window.__rvtAppSpeaking=false;suppressUntil=Date.now()+700;resetAnswerCapture(true);\n"
+        "  if(answerReady()&&prefs.autoMic&&!userStopped)startListeningForCard(cardSerial,720);\n"
         "}",
         'speech lifecycle',
     )
@@ -50,21 +57,21 @@ def main():
     text = replace_once(
         text,
         "function setAutoMic(v){prefs.autoMic=!!v;savePrefs();updateToggle();if(!prefs.autoMic){stopRecognition(true);setStatus('Mikrofon-Automatik ausgeschaltet.');}else{userStopped=false;acceptingAnswer=answerReady();ensureRecognition(false);if(answerReady())setStatus(statusListening(),true);}}",
-        "function setAutoMic(v){prefs.autoMic=!!v;savePrefs();updateToggle();if(!prefs.autoMic){clearCardCycle();stopRecognition(true);setStatus('Mikrofon-Automatik ausgeschaltet.');}else{userStopped=false;if(answerReady())startListeningForCard(cardSerial,80);}}",
+        "function setAutoMic(v){prefs.autoMic=!!v;savePrefs();updateToggle();if(!prefs.autoMic){clearCardCycle();stopRecognition(true);setStatus('Mikrofon-Automatik ausgeschaltet.');}else{userStopped=false;if(answerReady())startListeningForCard(cardSerial,100);}}",
         'setAutoMic',
     )
 
     text = replace_once(
         text,
         "const oldMic=$('#micButton');if(oldMic&&!oldMic.dataset.voiceController){const mic=oldMic.cloneNode(true);mic.dataset.voiceController='1';oldMic.replaceWith(mic);mic.addEventListener('click',()=>{if(!prefs.autoMic)setAutoMic(true);userStopped=false;acceptingAnswer=answerReady();if(recognitionRunning&&recognitionLang===answerLang())setStatus(statusListening(),true);else ensureRecognition(true);});}",
-        "const oldMic=$('#micButton');if(oldMic&&!oldMic.dataset.voiceController){const mic=oldMic.cloneNode(true);mic.dataset.voiceController='1';oldMic.replaceWith(mic);mic.addEventListener('click',()=>{if(!prefs.autoMic){setAutoMic(true);return;}userStopped=false;clearCardCycle();stopRecognition(false);if(answerReady())startListeningForCard(cardSerial,40);});}",
+        "const oldMic=$('#micButton');if(oldMic&&!oldMic.dataset.voiceController){const mic=oldMic.cloneNode(true);mic.dataset.voiceController='1';oldMic.replaceWith(mic);mic.addEventListener('click',()=>{if(!prefs.autoMic){setAutoMic(true);return;}userStopped=false;clearCardCycle();stopRecognition(false);if(answerReady())startListeningForCard(cardSerial,60);});}",
         'manual mic restart',
     )
 
     text = replace_once(
         text,
         "submittedSerial=-1;handledResultSerial=-1;acceptingAnswer=!!prefs.autoMic;resetAnswerCapture(true);\n  setStatus('Erste Spracherkennung war unsicher – bitte noch einmal sprechen.',true);",
-        "submittedSerial=-1;handledResultSerial=-1;stopRecognition(false);resetAnswerCapture(true);userStopped=false;\n  setStatus('Erste Spracherkennung war unsicher – bitte noch einmal sprechen.',true);\n  if(prefs.autoMic)startListeningForCard(cardSerial,120);",
+        "submittedSerial=-1;handledResultSerial=-1;stopRecognition(false);resetAnswerCapture(true);userStopped=false;\n  setStatus('Erste Spracherkennung war unsicher – bitte noch einmal sprechen.',true);\n  if(prefs.autoMic)startListeningForCard(cardSerial,160);",
         'startup retry',
     )
 
@@ -84,9 +91,12 @@ def main():
     setTimeout(()=>{
       if(serial!==cardSerial||!answerReady())return;
       speak($('#promptText')?.textContent?.trim()||'',promptLang());
-      if(prefs.autoMic)startListeningForCard(serial,1800);
-    },90);
-  }else if(prefs.autoMic)startListeningForCard(serial,100);
+      // iOS liefert onstart/onend nicht immer zuverlässig. Dieser Fallback
+      // versucht erst nach 2,4 s zu öffnen und wartet dann zusätzlich so lange,
+      // wie speechSynthesis tatsächlich noch spricht oder etwas in der Queue hat.
+      if(prefs.autoMic)startListeningForCard(serial,2400);
+    },100);
+  }else if(prefs.autoMic)startListeningForCard(serial,120);
   else setStatus('Mikrofon-Automatik ist aus.');
 }"""
     text = replace_once(text, old_start, new_start, 'startCard')
@@ -96,7 +106,7 @@ def main():
         "document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){acceptingAnswer=false;clearTimeout(advanceTimer);clearSubmit();stopRecognition(false);}else if(learnActive()){userStopped=false;if(prefs.autoMic)ensureRecognition(false);if(answerReady())setTimeout(()=>startCard(true),120);}});\n  document.addEventListener('rvt-app-speech-start',()=>{ownSpeech=true;clearSubmit();});\n  document.addEventListener('rvt-app-speech-end',()=>{ownSpeech=false;suppressUntil=Date.now()+380;resetAnswerCapture(true);if(answerReady()&&prefs.autoMic)setStatus(statusListening(),recognitionRunning||recognitionStarting);});",
         "document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){acceptingAnswer=false;clearCardCycle();clearTimeout(advanceTimer);clearSubmit();stopRecognition(false);}else if(learnActive()){userStopped=false;if(answerReady())setTimeout(()=>startCard(true),120);}});\n"
         "  document.addEventListener('rvt-app-speech-start',()=>{clearCardCycle();ownSpeech=true;acceptingAnswer=false;clearSubmit();if(recognitionRunning||recognitionStarting)stopRecognition(false);setStatus('Vokabel wird vorgelesen …');});\n"
-        "  document.addEventListener('rvt-app-speech-end',()=>{ownSpeech=false;suppressUntil=Date.now()+420;resetAnswerCapture(true);if(answerReady()&&prefs.autoMic&&!userStopped)startListeningForCard(cardSerial,430);});",
+        "  document.addEventListener('rvt-app-speech-end',()=>{ownSpeech=false;suppressUntil=Date.now()+700;resetAnswerCapture(true);if(answerReady()&&prefs.autoMic&&!userStopped)startListeningForCard(cardSerial,720);});",
         'speech events',
     )
 
@@ -107,12 +117,12 @@ def main():
         'install order',
     )
 
-    marker = "// RVT_CARD_SCOPED_VOICE_CYCLE_V2"
+    marker = "// RVT_CARD_SCOPED_VOICE_CYCLE_V3_IOS_SYNTHESIS_GUARD"
     if marker not in text:
         text = text.replace("'use strict';", "'use strict';\n" + marker, 1)
 
     PATH.write_text(text, encoding='utf-8')
-    print('voice-controller.js: Kartenzyklus gepatcht – Vorlesen vor Mikrofon, frische Erkennung pro Karte')
+    print('voice-controller.js: Kartenzyklus V3 – iOS-Sprachausgabe blockiert Mikrofon bis speechSynthesis wirklich beendet ist')
 
 
 if __name__ == '__main__':
