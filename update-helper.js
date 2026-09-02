@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.01.33';
+const BUILD='2026.09.02.34';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
@@ -32,6 +32,7 @@ async function loadHelpers(){
   await loadScript('speech-start-guard.js','speech-start-guard');
   await loadScript('voice-controller.js','voice-controller');
   await loadScript('voice-selfcheck.js','voice-selfcheck');
+  await loadScript('wrong-study-pause.js','wrong-study-pause');
 }
 function installUpdateHooks(){
   showVersion();loadHelpers();checkForUpdate(true);
