@@ -53,7 +53,7 @@ def primary_form(s):
 def stressed_form(s):
     text = primary_form(s)
     text = text.replace("´", "'")
-    text = re.sub(rf"([{VOWELS}])'", r"\1\u0301", text)
+    text = re.sub(rf"([{VOWELS}])'", lambda match: match.group(1) + "\u0301", text)
     return text.replace("'", "")
 
 
