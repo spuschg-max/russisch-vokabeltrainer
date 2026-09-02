@@ -112,8 +112,9 @@ jobs:
           grep -q 'accent_sentence_bank.py' .github/workflows/pages.yml
           grep -q 'annotate_sentence_cases.py' .github/workflows/pages.yml
           grep -q 'patch_voice_cycle.py' .github/workflows/pages.yml
-          grep -q 'RVT_CARD_SCOPED_VOICE_CYCLE_V2' voice-controller.js
+          grep -q 'RVT_CARD_SCOPED_VOICE_CYCLE_V3_IOS_SYNTHESIS_GUARD' voice-controller.js
           grep -q 'startListeningForCard' voice-controller.js
+          grep -q 'speechSynthesis.speaking' voice-controller.js
           grep -q 'Vokabel wird vorgelesen' voice-controller.js
           grep -q 'id="sentenceCase"' sentence-drill.js
           grep -q 'sentence-lazy-loader.js' update-helper.js
