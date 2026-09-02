@@ -31,9 +31,11 @@ jobs:
       - name: Tatoeba-Satzquellen cachen
         uses: actions/cache@v4
         with:
-          path: .cache/tatoeba
+          path: /tmp/rvt-tatoeba
           key: tatoeba-deu-rus-sentence-bank-v1
       - name: Deutsch-russische Satzbank erzeugen
+        env:
+          TATOEBA_CACHE: /tmp/rvt-tatoeba
         run: python3 scripts/build_sentence_bank.py
       - name: Pages konfigurieren
         uses: actions/configure-pages@v5
