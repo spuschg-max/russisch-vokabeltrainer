@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Sprach-Kartenzyklus anwenden
+        run: python3 scripts/patch_voice_cycle.py
       - name: JavaScript-Syntax prüfen
         run: |
           node --check app.js
@@ -46,7 +48,7 @@ jobs:
           node --check exercise-packages.js
           node --check standard-pack.js
           node --check service-worker.js
-          python3 -m py_compile scripts/build_standard_vocab.py scripts/enrich_conjugations.py scripts/build_stress_lexicon.py scripts/build_sentence_bank.py scripts/accent_sentence_bank.py scripts/annotate_sentence_cases.py
+          python3 -m py_compile scripts/build_standard_vocab.py scripts/enrich_conjugations.py scripts/build_stress_lexicon.py scripts/build_sentence_bank.py scripts/accent_sentence_bank.py scripts/annotate_sentence_cases.py scripts/patch_voice_cycle.py
       - name: Pflichtdateien prüfen
         run: |
           test -s index.html
@@ -88,6 +90,7 @@ jobs:
           test -s scripts/build_sentence_bank.py
           test -s scripts/accent_sentence_bank.py
           test -s scripts/annotate_sentence_cases.py
+          test -s scripts/patch_voice_cycle.py
           grep -q 'id="learnCard"' index.html
           grep -q 'id="discardCurrent"' index.html
           grep -q 'id="installApp"' index.html
@@ -108,6 +111,10 @@ jobs:
           grep -q 'build_sentence_bank.py' .github/workflows/pages.yml
           grep -q 'accent_sentence_bank.py' .github/workflows/pages.yml
           grep -q 'annotate_sentence_cases.py' .github/workflows/pages.yml
+          grep -q 'patch_voice_cycle.py' .github/workflows/pages.yml
+          grep -q 'RVT_CARD_SCOPED_VOICE_CYCLE_V2' voice-controller.js
+          grep -q 'startListeningForCard' voice-controller.js
+          grep -q 'Vokabel wird vorgelesen' voice-controller.js
           grep -q 'id="sentenceCase"' sentence-drill.js
           grep -q 'sentence-lazy-loader.js' update-helper.js
           grep -q 'sentence-lazy-loader.js' service-worker.js
