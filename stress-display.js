@@ -53,6 +53,18 @@ function accentElement(el){
   const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode(node){return node.parentElement?.closest('.rvt-stress-vowel')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}});
   const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach(accentTextNode);
 }
+function accentPromptWithoutMutation(){
+  const el=document.getElementById('promptText');if(!el)return;
+  const raw=String(el.textContent||'');
+  const stressed=accentize(raw);
+  if(stressed!==raw&&stressed.includes(ACUTE)){
+    el.dataset.rvtStressed=stressed;
+    el.classList.add('rvt-stress-prompt-overlay');
+  }else{
+    delete el.dataset.rvtStressed;
+    el.classList.remove('rvt-stress-prompt-overlay');
+  }
+}
 function stressConjugationSolution(){
   const verb=document.getElementById('conjVerb'),person=document.getElementById('conjPerson'),solution=document.getElementById('conjSolution');
   if(!verb||!person||!solution||!CYR.test(solution.textContent||''))return;
@@ -69,15 +81,17 @@ function installStyles(){
   const s=document.createElement('style');s.id='rvtStressStyles';s.textContent=`
     .rvt-stress-vowel{position:relative;display:inline-block;line-height:inherit;vertical-align:baseline}
     .rvt-stress-vowel::after{content:'';position:absolute;pointer-events:none;left:56%;top:-.06em;width:.055em;height:.24em;border-radius:999px;background:currentColor;transform:translateX(-50%) rotate(18deg);transform-origin:50% 100%}
-    .prompt-text .rvt-stress-vowel::after{top:-.04em;height:.22em}
+    #promptText.rvt-stress-prompt-overlay{position:relative;color:transparent!important}
+    #promptText.rvt-stress-prompt-overlay::after{content:attr(data-rvt-stressed);position:absolute;inset:0;color:var(--text);font:inherit;line-height:inherit;letter-spacing:inherit;text-align:inherit;white-space:inherit;pointer-events:none}
   `;document.head.appendChild(s);
 }
 function update(){
   if(mutating)return;scheduled=false;mutating=true;
   try{
+    accentPromptWithoutMutation();
     stressConjugationSolution();
     const ids=[
-      'promptText','solutionText','acceptedText','wordList','difficultList',
+      'solutionText','acceptedText','wordList','difficultList',
       'conjVerb','conjSolution','conjPoolList','conjStudyList',
       'speakModel','speakWordList',
       'formPrompt','formSolution','formsList','sentenceSolution'
