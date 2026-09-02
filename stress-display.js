@@ -61,7 +61,7 @@ function stressConjugationSolution(){
     const words=JSON.parse(localStorage.getItem(STORAGE)||'{}').words||[];
     const word=words.find(w=>key(w?.ru)===key(verb.textContent));
     const forms=Array.isArray(word?.formsStress)?word.formsStress:[];
-    if(forms.length>=6&&forms[pi])solution.textContent=stripStress(forms[pi]);
+    if(forms.length>=6&&forms[pi])solution.textContent=forms[pi];
   }catch(e){}
 }
 function installStyles(){
