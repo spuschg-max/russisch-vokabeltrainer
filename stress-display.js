@@ -6,7 +6,7 @@ const CYR=/[А-Яа-яЁё]/;
 const WORD=/[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)*/g;
 const PERSONS=['я','ты','он/она','мы','вы','они'];
 const ACUTE='\u0301';
-let scheduled=false,mutating=false;
+let timer=null,updating=false;
 
 function stripStress(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').normalize('NFC');}
 function key(s){return stripStress(s).toLocaleLowerCase().trim().replace(/\s+/g,' ');}
@@ -27,82 +27,95 @@ function accentize(text){
   const exact=lookup(raw);if(exact)return exact;
   return raw.replace(WORD,token=>lookup(token)||token);
 }
-function makeVisualFragment(stressed){
-  const frag=document.createDocumentFragment(),chars=Array.from(String(stressed||''));
-  let buffer='';
-  const flush=()=>{if(buffer){frag.appendChild(document.createTextNode(buffer));buffer='';}};
-  for(let i=0;i<chars.length;i++){
-    const ch=chars[i];
-    if(ch===ACUTE)continue;
-    if(chars[i+1]===ACUTE){
-      flush();
-      const span=document.createElement('span');span.className='rvt-stress-vowel';span.textContent=ch;frag.appendChild(span);i++;
-    }else buffer+=ch;
-  }
-  flush();return frag;
+function makeVisualSpan(raw,stressed){
+  const span=document.createElement('span');
+  span.className='rvt-stress-render';
+  span.dataset.rvtStressed=stressed;
+  span.textContent=stripStress(raw);
+  return span;
 }
 function accentTextNode(node){
-  if(!node||node.nodeType!==Node.TEXT_NODE||node.parentElement?.closest('.rvt-stress-vowel')||!CYR.test(node.nodeValue||''))return;
+  if(!node||node.nodeType!==Node.TEXT_NODE||node.parentElement?.closest('.rvt-stress-render')||!CYR.test(node.nodeValue||''))return false;
   const raw=String(node.nodeValue||'');
   const stressed=raw.includes(ACUTE)?raw:accentize(raw);
-  if(!stressed.includes(ACUTE))return;
-  node.replaceWith(makeVisualFragment(stressed));
+  if(!stressed.includes(ACUTE))return false;
+  node.replaceWith(makeVisualSpan(raw,stressed));
+  return true;
 }
 function accentElement(el){
+  if(!el)return false;
+  const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode(node){return node.parentElement?.closest('.rvt-stress-render')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}});
+  const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+  let changed=false;for(const node of nodes)if(accentTextNode(node))changed=true;
+  return changed;
+}
+function setOverlay(el,stressed){
   if(!el)return;
-  const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode(node){return node.parentElement?.closest('.rvt-stress-vowel')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}});
-  const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach(accentTextNode);
+  const raw=stripStress(el.textContent||'');
+  if(stressed&&stressed!==raw&&stressed.includes(ACUTE)){
+    el.dataset.rvtStressed=stressed;
+    el.classList.add('rvt-stress-element-overlay','rvt-russian-font');
+  }else{
+    delete el.dataset.rvtStressed;
+    el.classList.remove('rvt-stress-element-overlay');
+  }
 }
 function accentPromptWithoutMutation(){
   const el=document.getElementById('promptText');if(!el)return;
-  const raw=String(el.textContent||'');
-  const stressed=accentize(raw);
-  if(stressed!==raw&&stressed.includes(ACUTE)){
-    el.dataset.rvtStressed=stressed;
-    el.classList.add('rvt-stress-prompt-overlay');
-  }else{
-    delete el.dataset.rvtStressed;
-    el.classList.remove('rvt-stress-prompt-overlay');
-  }
+  const raw=stripStress(el.textContent||'');
+  if(!CYR.test(raw)){delete el.dataset.rvtStressed;el.classList.remove('rvt-stress-element-overlay','rvt-russian-font');return;}
+  setOverlay(el,accentize(raw));
 }
 function stressConjugationSolution(){
   const verb=document.getElementById('conjVerb'),person=document.getElementById('conjPerson'),solution=document.getElementById('conjSolution');
-  if(!verb||!person||!solution||!CYR.test(solution.textContent||''))return;
-  const pi=PERSONS.indexOf(stripStress(person.textContent).trim());if(pi<0)return;
-  try{
-    const words=JSON.parse(localStorage.getItem(STORAGE)||'{}').words||[];
-    const word=words.find(w=>key(w?.ru)===key(verb.textContent));
-    const forms=Array.isArray(word?.formsStress)?word.formsStress:[];
-    if(forms.length>=6&&forms[pi])solution.textContent=forms[pi];
-  }catch(e){}
+  if(!solution)return;
+  let stressed='';
+  if(verb&&person&&CYR.test(solution.textContent||'')){
+    const pi=PERSONS.indexOf(stripStress(person.textContent).trim());
+    if(pi>=0){
+      try{
+        const words=JSON.parse(localStorage.getItem(STORAGE)||'{}').words||[];
+        const word=words.find(w=>key(w?.ru)===key(verb.textContent));
+        const forms=Array.isArray(word?.formsStress)?word.formsStress:[];
+        if(forms.length>=6&&forms[pi])stressed=String(forms[pi]);
+      }catch(e){}
+    }
+  }
+  if(!stressed)stressed=accentize(stripStress(solution.textContent||''));
+  setOverlay(solution,stressed);
 }
 function installStyles(){
   if(document.getElementById('rvtStressStyles'))return;
   const s=document.createElement('style');s.id='rvtStressStyles';s.textContent=`
-    .rvt-stress-vowel{position:relative;display:inline-block;line-height:inherit;vertical-align:baseline}
-    .rvt-stress-vowel::after{content:'';position:absolute;pointer-events:none;left:56%;top:-.06em;width:.055em;height:.24em;border-radius:999px;background:currentColor;transform:translateX(-50%) rotate(18deg);transform-origin:50% 100%}
-    #promptText.rvt-stress-prompt-overlay{position:relative;color:transparent!important}
-    #promptText.rvt-stress-prompt-overlay::after{content:attr(data-rvt-stressed);position:absolute;inset:0;color:var(--text);font:inherit;line-height:inherit;letter-spacing:inherit;text-align:inherit;white-space:inherit;pointer-events:none}
+    .rvt-russian-font,.rvt-stress-render,.rvt-stress-render::after,.rvt-stress-element-overlay::after{font-family:"Times New Roman",Times,serif!important}
+    .rvt-stress-render{position:relative;display:inline-block;visibility:hidden;font:inherit;line-height:inherit;letter-spacing:inherit;white-space:pre-wrap;vertical-align:baseline}
+    .rvt-stress-render::after{content:attr(data-rvt-stressed);position:absolute;inset:0;visibility:visible;color:inherit;font:inherit;line-height:inherit;letter-spacing:inherit;white-space:pre-wrap;pointer-events:none}
+    .rvt-stress-element-overlay{position:relative;visibility:hidden!important}
+    .rvt-stress-element-overlay::after{content:attr(data-rvt-stressed);position:absolute;inset:0;visibility:visible;color:inherit;font:inherit;line-height:inherit;letter-spacing:inherit;text-align:inherit;white-space:pre-wrap;pointer-events:none}
   `;document.head.appendChild(s);
 }
 function update(){
-  if(mutating)return;scheduled=false;mutating=true;
+  if(updating)return;updating=true;
   try{
     accentPromptWithoutMutation();
     stressConjugationSolution();
     const ids=[
       'solutionText','acceptedText','wordList','difficultList',
-      'conjVerb','conjSolution','conjPoolList','conjStudyList',
+      'conjVerb','conjPoolList','conjStudyList',
       'speakModel','speakWordList',
       'formPrompt','formSolution','formsList','sentenceSolution'
     ];
     ids.forEach(id=>accentElement(document.getElementById(id)));
-  }finally{mutating=false;}
+  }finally{updating=false;}
 }
-function schedule(){if(scheduled||mutating)return;scheduled=true;requestAnimationFrame(update);}
+function schedule(){
+  if(updating)return;
+  clearTimeout(timer);timer=setTimeout(update,45);
+}
 function init(){
   installStyles();update();
-  const observer=new MutationObserver(schedule);observer.observe(document.body,{childList:true,subtree:true,characterData:true});
+  const observer=new MutationObserver(schedule);
+  observer.observe(document.body,{childList:true,subtree:true,characterData:true});
   window.addEventListener('rvt-conjugations-enriched',schedule);
 }
 window.__rvtStress={accentize,lookup,stripStress};
