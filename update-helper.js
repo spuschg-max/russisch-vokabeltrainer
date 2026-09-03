@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-// Normaler Vokabeltrainer: Kernlogik entspricht dem letzten Stand vor dem Satzmodul (e8285b2).
-const BUILD='2026.09.03.70';
+// Normaler Vokabeltrainer: Satzmodul und alte Sprach-Guards bleiben vom Lernstart getrennt.
+const BUILD='2026.09.03.71';
 window.__RVT_BUILD=BUILD;
 const $=s=>document.querySelector(s);
 let lastCheck=0;
@@ -35,10 +35,7 @@ async function loadHelpers(){
   await loadScript('speech-unlock.js','speech-unlock');
   await loadScript('speech-tolerance.js','speech-tolerance');
   await loadScript('speech-segmentation.js','speech-segmentation');
-  await loadScript('speech-start-guard.js','speech-start-guard');
   await loadScript('voice-controller.js','voice-controller');
-  await loadScript('voice-selfcheck.js','voice-selfcheck');
-  await loadScript('wrong-study-pause.js','wrong-study-pause');
 }
 function installSentenceEntry(){
   const nav=$('.tabs');if(!nav||$('#sentenceEntryTab')||$('#sentenceTab'))return;
