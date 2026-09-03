@@ -1,1 +1,0 @@
-window.RVT_SENTENCE_CASES=[];
