@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.03.74';
+const BUILD='2026.09.03.75';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
@@ -19,6 +19,9 @@ function loadScript(src,key){
   return new Promise(resolve=>{const s=document.createElement('script');s.src=src+'?v='+BUILD;s.dataset.helper=key;s.async=false;s.onload=resolve;s.onerror=resolve;document.body.appendChild(s);});
 }
 async function loadHelpers(){
+  await loadScript('car-mode.js','car-mode');
+  await loadScript('stress-lexicon-data.js','stress-lexicon-data');
+  await loadScript('stress-display-lite.js','stress-display-lite');
   loadScript('import-code.js','import-code');
   loadScript('voice-add.js','voice-add');
   loadScript('learning-ui.js','learning-ui');
@@ -29,7 +32,7 @@ async function loadHelpers(){
   await loadScript('speech-unlock.js','speech-unlock');
   await loadScript('speech-tolerance.js','speech-tolerance');
   await loadScript('speech-segmentation.js','speech-segmentation');
-  await loadScript('speech-start-guard.js','speech-start-guard');
+  if(!window.__RVT_CAR_MODE)await loadScript('speech-start-guard.js','speech-start-guard');
   await loadScript('voice-controller.js','voice-controller');
   await loadScript('voice-selfcheck.js','voice-selfcheck');
 }
