@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-// Normaler Vokabeltrainer: Satzmodul und alte Sprach-Guards bleiben vom Lernstart getrennt.
-const BUILD='2026.09.03.71';
+// Normaler Vokabeltrainer: Satzmodul und alte Sprach-Wrapper bleiben vom Lernstart getrennt.
+const BUILD='2026.09.03.72';
 window.__RVT_BUILD=BUILD;
 const $=s=>document.querySelector(s);
 let lastCheck=0;
@@ -33,8 +33,6 @@ async function loadHelpers(){
   loadScript('conjugation-study.js','conjugation-study');
   await loadScript('audio-toggle.js','audio-toggle');
   await loadScript('speech-unlock.js','speech-unlock');
-  await loadScript('speech-tolerance.js','speech-tolerance');
-  await loadScript('speech-segmentation.js','speech-segmentation');
   await loadScript('voice-controller.js','voice-controller');
 }
 function installSentenceEntry(){
