@@ -40,7 +40,8 @@ function installRepeatButton(){
 }
 function render(){
   installQuickButton();installRepeatButton();
-  const c=core(),id=currentId(),quick=$('#quickRepeatCurrent');
+  const c=core(),id=currentId(),quick=$('#quickRepeatCurrent'),problem=$('#problemCurrent');
+  if(quick&&problem&&quick.nextElementSibling!==problem)problem.parentNode.insertBefore(quick,problem);
   const on=!!(c&&id&&c.isOn(id));
   if(quick){quick.classList.toggle('quick-repeat-active',on);quick.setAttribute('aria-pressed',on?'true':'false');quick.title=on?'Schnelllernen ausschalten':'Schnelllernen: Diese Vokabel nach jeweils zwei anderen wiederholen';}
   const repeat=$('#repeatWordInline'),isRu=/russisch/i.test($('#promptLabel')?.textContent||'');if(repeat)repeat.classList.toggle('hidden',!isRu);
@@ -60,7 +61,7 @@ function installStyles(){
 }
 function install(){
   installStyles();
-  let tries=0;const timer=setInterval(()=>{tries++;installQuickButton();installRepeatButton();render();if((core()&&$('#quickRepeatCurrent')&&$('#repeatWordInline'))||tries>40)clearInterval(timer);},100);
+  let tries=0;const timer=setInterval(()=>{tries++;installQuickButton();installRepeatButton();render();if((core()&&$('#quickRepeatCurrent')&&$('#repeatWordInline')&&$('#problemCurrent'))||tries>40)clearInterval(timer);},100);
   const prompt=$('#promptText');if(prompt)new MutationObserver(()=>setTimeout(render,0)).observe(prompt,{childList:true,characterData:true,subtree:true});
   const label=$('#promptLabel');if(label)new MutationObserver(()=>setTimeout(render,0)).observe(label,{childList:true,characterData:true,subtree:true});
   document.addEventListener('click',e=>{if(e.target?.closest?.('.rating,#masterCurrent,#problemCurrent,#quickRepeatCurrent'))setTimeout(render,80);},true);
