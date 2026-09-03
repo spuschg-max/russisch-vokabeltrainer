@@ -37,7 +37,7 @@ jobs:
           node --check stress-display.js
           node --check sentence-lazy-loader.js
           node --check sentence-drill.js
-          node --check sentence-voice-loop.js
+          node --check sentence-ui-guard.js
           node --check conjugation-data-bridge.js
           node --check conjugation-drill.js
           node --check conjugation-flow-fix.js
@@ -74,7 +74,7 @@ jobs:
           test -s stress-display.js
           test -s sentence-lazy-loader.js
           test -s sentence-drill.js
-          test -s sentence-voice-loop.js
+          test -s sentence-ui-guard.js
           test -s conjugation-data-bridge.js
           test -s conjugation-drill.js
           test -s conjugation-flow-fix.js
@@ -115,7 +115,11 @@ jobs:
           grep -q 'sentence-lazy-loader.js' service-worker.js
           grep -q 'sentence-drill.js' sentence-lazy-loader.js
           grep -q 'sentence-bank-data.js' sentence-lazy-loader.js
-          grep -q 'sentence-voice-loop.js' sentence-lazy-loader.js
+          grep -q 'sentence-ui-guard.js' sentence-lazy-loader.js
+          grep -q 'sentence-ui-guard.js' service-worker.js
+          ! grep -q 'sentence-voice-loop.js' sentence-lazy-loader.js
+          ! grep -q 'sentence-voice-loop.js' service-worker.js
+          grep -q 'MAX_PAIRS = 30000' scripts/build_sentence_bank.py
           ! grep -q "loadScript('sentence-drill.js'" update-helper.js
           ! grep -q "loadScript('sentence-voice-loop.js'" update-helper.js
           grep -q 'Times New Roman' stress-display.js
