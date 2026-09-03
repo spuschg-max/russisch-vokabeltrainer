@@ -57,8 +57,10 @@ jobs:
           grep -q 'window.__rvtQuickRepeatCore=' app.js
           grep -q 'if(p.quickRepeat)' app.js
           grep -q 'p.nextTurn=state.sessionTurn+2' app.js
+          grep -q 'const quick=activeLearningWords().filter(w=>pFor(w.id).quickRepeat' app.js
           grep -q 'quickRepeatCurrent' quick-repeat.js
           grep -q 'repeatWordInline' quick-repeat.js
+          grep -q 'quick.nextElementSibling!==problem' quick-repeat.js
           ! grep -q 'SpeechRecognition' quick-repeat.js
           ! grep -q 'webkitSpeechRecognition' quick-repeat.js
           grep -q 'font-family:Arial' stress-display-lite.js
