@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const VERSION='2026.09.03.60';
+const VERSION='2026.09.03.65';
 const $=s=>document.querySelector(s);
 let loading=false,loaded=false;
 
@@ -31,10 +31,11 @@ async function openSentences(){
     const drillOk=await script('sentence-drill.js','drill');
     if(!drillOk)throw new Error('drill');
     const real=$('#sentenceTab');if(real){real.disabled=true;real.textContent='Sätze …';}
+    const guardOk=await script('sentence-ui-guard.js','ui-guard');
+    if(!guardOk)throw new Error('ui-guard');
     try{delete window.RVT_SENTENCE_BANK;delete window.RVT_SENTENCE_META;}catch(e){}
     const bankOk=await script('sentence-bank-data.js','bank');
     if(!bankOk||!bankReady())throw new Error('bank');
-    await script('sentence-voice-loop.js','voice');
     loaded=true;loading=false;
     if(real){real.disabled=false;real.textContent='Sätze';}
     document.dispatchEvent(new Event('rvt-sentence-bank-ready'));
