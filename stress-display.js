@@ -6,6 +6,7 @@ const CYR=/[А-Яа-яЁё]/;
 const WORD=/[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)*/g;
 const PERSONS=['я','ты','он/она','мы','вы','они'];
 const ACUTE='\u0301';
+const requestedChunks=new Set();
 let timer=null,updating=false;
 
 function stripStress(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').normalize('NFC');}
@@ -21,7 +22,14 @@ function matchCase(source,stressed){
   }
   return stressed;
 }
-function lookup(text){const hit=MAP()[key(text)];return hit?matchCase(text,hit):null;}
+function requestChunk(text){
+  const k=key(text),first=[...k].find(ch=>CYR.test(ch));if(!first)return;
+  const name='u'+first.codePointAt(0).toString(16).padStart(4,'0');
+  if(requestedChunks.has(name))return;requestedChunks.add(name);
+  const s=document.createElement('script');s.src=`stress-chunks/${name}.js?v=${encodeURIComponent(window.__RVT_BUILD||'1')}`;s.async=true;
+  s.onload=()=>schedule();s.onerror=()=>{};document.body.appendChild(s);
+}
+function lookup(text){const hit=MAP()[key(text)];if(hit)return matchCase(text,hit);requestChunk(text);return null;}
 function accentize(text){
   const raw=String(text??'');if(!CYR.test(raw))return raw;
   const exact=lookup(raw);if(exact)return exact;
@@ -99,19 +107,12 @@ function update(){
   try{
     accentPromptWithoutMutation();
     stressConjugationSolution();
-    const ids=[
-      'solutionText','acceptedText','wordList','difficultList',
-      'conjVerb','conjPoolList','conjStudyList',
-      'speakModel','speakWordList',
-      'formPrompt','formSolution','formsList','sentenceSolution'
-    ];
-    ids.forEach(id=>accentElement(document.getElementById(id)));
+    ['solutionText','acceptedText','conjVerb','conjPoolList','conjStudyList','speakModel','speakWordList','formPrompt','formSolution','formsList','sentenceSolution'].forEach(id=>accentElement(document.getElementById(id)));
+    if(document.getElementById('view-words')?.classList.contains('active'))accentElement(document.getElementById('wordList'));
+    if(document.getElementById('view-progress')?.classList.contains('active'))accentElement(document.getElementById('difficultList'));
   }finally{updating=false;}
 }
-function schedule(){
-  if(updating)return;
-  clearTimeout(timer);timer=setTimeout(update,45);
-}
+function schedule(){if(updating)return;clearTimeout(timer);timer=setTimeout(update,45);}
 function init(){
   installStyles();update();
   const observer=new MutationObserver(schedule);
