@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.03.64';
+const BUILD='2026.09.03.65';
 window.__RVT_BUILD=BUILD;
 const $=s=>document.querySelector(s);
 let lastCheck=0;
