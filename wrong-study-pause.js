@@ -8,8 +8,22 @@ let skipNextAgain=false;
 function panelOpen(){const p=$('#resultPanel');return !!p&&!p.classList.contains('hidden');}
 function hideStableFeedback(){const o=$('#stableFeedback');if(o)o.classList.remove('show');}
 function solution(){return ($('#solutionText')?.textContent||'').trim();}
+function plainSolution(){
+  const text=solution();
+  try{return window.__rvtStressLite?.stripStress?.(text)||text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').normalize('NFC');}catch(e){return text;}
+}
+function accentSolution(){
+  if(!/russisch/i.test($('#answerLabel')?.textContent||''))return;
+  const el=$('#solutionText');if(!el)return;
+  const api=window.__rvtStressLite;if(!api?.accentize)return;
+  const raw=api.stripStress?.(el.textContent||'')||el.textContent||'';
+  const stressed=api.accentize(raw);
+  if(stressed&&stressed!==el.textContent){
+    el.classList.remove('rvt-stress-lite');delete el.dataset.rvtStress;el.textContent=stressed;
+  }
+}
 function speakSolution(){
-  const text=solution();if(!text||!('speechSynthesis'in window))return;
+  const text=plainSolution();if(!text||!('speechSynthesis'in window))return;
   try{
     speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);
@@ -29,7 +43,7 @@ function ensureBox(){
 }
 function showPause(){
   if(waiting||!panelOpen())return;
-  waiting=true;hideStableFeedback();document.body.classList.add('rvt-wrong-study');
+  waiting=true;hideStableFeedback();accentSolution();document.body.classList.add('rvt-wrong-study');
   ensureBox()?.classList.remove('hidden');
   const s=$('#micStatus');if(s){s.textContent='Lösung ansehen – wenn du bereit bist, auf Weiter tippen.';s.classList.remove('listening');}
 }
