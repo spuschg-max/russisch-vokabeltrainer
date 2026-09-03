@@ -1,13 +1,11 @@
 (() => {
 'use strict';
-const STORAGE='russischVokabeltrainer.v2';
 const MAP=()=>window.RVT_STRESS_LEXICON||{};
 const CYR=/[А-Яа-яЁё]/;
 const WORD=/[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)*/g;
-const PERSONS=['я','ты','он/она','мы','вы','они'];
 const ACUTE='\u0301';
 const requestedChunks=new Set();
-let timer=null,updating=false;
+const $=s=>document.querySelector(s);
 
 function stripStress(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').normalize('NFC');}
 function key(s){return stripStress(s).toLocaleLowerCase().trim().replace(/\s+/g,' ');}
@@ -17,107 +15,60 @@ function matchCase(source,stressed){
   if(letters&&letters===letters.toLocaleUpperCase())return stressed.toLocaleUpperCase();
   const first=source.match(/[А-Яа-яЁё]/)?.[0];
   if(first&&first===first.toLocaleUpperCase()){
-    const i=stressed.search(/[А-Яа-яЁё]/);
-    if(i>=0)return stressed.slice(0,i)+stressed[i].toLocaleUpperCase()+stressed.slice(i+1);
+    const i=stressed.search(/[А-Яа-яЁё]/);if(i>=0)return stressed.slice(0,i)+stressed[i].toLocaleUpperCase()+stressed.slice(i+1);
   }
   return stressed;
 }
-function requestChunk(text){
+function requestChunk(text,onload){
   const k=key(text),first=[...k].find(ch=>CYR.test(ch));if(!first)return;
   const name='u'+first.codePointAt(0).toString(16).padStart(4,'0');
-  if(requestedChunks.has(name))return;requestedChunks.add(name);
+  if(requestedChunks.has(name))return;
+  requestedChunks.add(name);
   const s=document.createElement('script');s.src=`stress-chunks/${name}.js?v=${encodeURIComponent(window.__RVT_BUILD||'1')}`;s.async=true;
-  s.onload=()=>schedule();s.onerror=()=>{};document.body.appendChild(s);
+  s.onload=()=>onload?.();s.onerror=()=>{};document.body.appendChild(s);
 }
-function lookup(text){const hit=MAP()[key(text)];if(hit)return matchCase(text,hit);requestChunk(text);return null;}
-function accentize(text){
+function lookup(text,onload){const hit=MAP()[key(text)];if(hit)return matchCase(text,hit);requestChunk(text,onload);return null;}
+function accentize(text,onload){
   const raw=String(text??'');if(!CYR.test(raw))return raw;
-  const exact=lookup(raw);if(exact)return exact;
-  return raw.replace(WORD,token=>lookup(token)||token);
-}
-function makeVisualSpan(raw,stressed){
-  const span=document.createElement('span');
-  span.className='rvt-stress-render';
-  span.dataset.rvtStressed=stressed;
-  span.textContent=stripStress(raw);
-  return span;
-}
-function accentTextNode(node){
-  if(!node||node.nodeType!==Node.TEXT_NODE||node.parentElement?.closest('.rvt-stress-render')||!CYR.test(node.nodeValue||''))return false;
-  const raw=String(node.nodeValue||'');
-  const stressed=raw.includes(ACUTE)?raw:accentize(raw);
-  if(!stressed.includes(ACUTE))return false;
-  node.replaceWith(makeVisualSpan(raw,stressed));
-  return true;
-}
-function accentElement(el){
-  if(!el)return false;
-  const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode(node){return node.parentElement?.closest('.rvt-stress-render')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}});
-  const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
-  let changed=false;for(const node of nodes)if(accentTextNode(node))changed=true;
-  return changed;
+  const exact=lookup(raw,onload);if(exact)return exact;
+  return raw.replace(WORD,token=>lookup(token,onload)||token);
 }
 function setOverlay(el,stressed){
   if(!el)return;
   const raw=stripStress(el.textContent||'');
   if(stressed&&stressed!==raw&&stressed.includes(ACUTE)){
-    el.dataset.rvtStressed=stressed;
-    el.classList.add('rvt-stress-element-overlay','rvt-russian-font');
-  }else{
-    delete el.dataset.rvtStressed;
-    el.classList.remove('rvt-stress-element-overlay');
-  }
+    el.dataset.rvtStressed=stressed;el.classList.add('rvt-stress-element-overlay','rvt-russian-font');
+  }else{delete el.dataset.rvtStressed;el.classList.remove('rvt-stress-element-overlay','rvt-russian-font');}
 }
-function accentPromptWithoutMutation(){
-  const el=document.getElementById('promptText');if(!el)return;
-  const raw=stripStress(el.textContent||'');
-  if(!CYR.test(raw)){delete el.dataset.rvtStressed;el.classList.remove('rvt-stress-element-overlay','rvt-russian-font');return;}
-  setOverlay(el,accentize(raw));
+function accentOverlay(el){
+  if(!el)return;const raw=stripStress(el.textContent||'');
+  if(!CYR.test(raw)){setOverlay(el,'');return;}
+  setOverlay(el,accentize(raw,()=>setTimeout(()=>accentOverlay(el),0)));
 }
-function stressConjugationSolution(){
-  const verb=document.getElementById('conjVerb'),person=document.getElementById('conjPerson'),solution=document.getElementById('conjSolution');
-  if(!solution)return;
-  let stressed='';
-  if(verb&&person&&CYR.test(solution.textContent||'')){
-    const pi=PERSONS.indexOf(stripStress(person.textContent).trim());
-    if(pi>=0){
-      try{
-        const words=JSON.parse(localStorage.getItem(STORAGE)||'{}').words||[];
-        const word=words.find(w=>key(w?.ru)===key(verb.textContent));
-        const forms=Array.isArray(word?.formsStress)?word.formsStress:[];
-        if(forms.length>=6&&forms[pi])stressed=String(forms[pi]);
-      }catch(e){}
-    }
-  }
-  if(!stressed)stressed=accentize(stripStress(solution.textContent||''));
-  setOverlay(solution,stressed);
+function accentWordRows(){document.querySelectorAll('.word-ru').forEach(accentOverlay);}
+function accentDifficult(){document.querySelectorAll('#difficultList strong').forEach(accentOverlay);}
+function updateCore(){
+  accentOverlay($('#promptText'));accentOverlay($('#solutionText'));accentOverlay($('#acceptedText'));
+  accentOverlay($('#conjVerb'));accentOverlay($('#conjSolution'));accentOverlay($('#formPrompt'));accentOverlay($('#formSolution'));accentOverlay($('#sentenceSolution'));
 }
 function installStyles(){
-  if(document.getElementById('rvtStressStyles'))return;
+  if($('#rvtStressStyles'))return;
   const s=document.createElement('style');s.id='rvtStressStyles';s.textContent=`
-    .rvt-russian-font,.rvt-stress-render,.rvt-stress-render::after,.rvt-stress-element-overlay::after{font-family:"Times New Roman",Times,serif!important}
-    .rvt-stress-render{position:relative;display:inline-block;visibility:hidden;font:inherit;line-height:inherit;letter-spacing:inherit;white-space:pre-wrap;vertical-align:baseline}
-    .rvt-stress-render::after{content:attr(data-rvt-stressed);position:absolute;inset:0;visibility:visible;color:inherit;font:inherit;line-height:inherit;letter-spacing:inherit;white-space:pre-wrap;pointer-events:none}
+    .rvt-russian-font,.rvt-stress-element-overlay::after{font-family:"Times New Roman",Times,serif!important}
     .rvt-stress-element-overlay{position:relative;visibility:hidden!important}
     .rvt-stress-element-overlay::after{content:attr(data-rvt-stressed);position:absolute;inset:0;visibility:visible;color:inherit;font:inherit;line-height:inherit;letter-spacing:inherit;text-align:inherit;white-space:pre-wrap;pointer-events:none}
   `;document.head.appendChild(s);
 }
-function update(){
-  if(updating)return;updating=true;
-  try{
-    accentPromptWithoutMutation();
-    stressConjugationSolution();
-    ['solutionText','acceptedText','conjVerb','conjPoolList','conjStudyList','speakModel','speakWordList','formPrompt','formSolution','formsList','sentenceSolution'].forEach(id=>accentElement(document.getElementById(id)));
-    if(document.getElementById('view-words')?.classList.contains('active'))accentElement(document.getElementById('wordList'));
-    if(document.getElementById('view-progress')?.classList.contains('active'))accentElement(document.getElementById('difficultList'));
-  }finally{updating=false;}
-}
-function schedule(){if(updating)return;clearTimeout(timer);timer=setTimeout(update,45);}
+function observe(el,fn){if(!el)return;new MutationObserver(()=>setTimeout(fn,0)).observe(el,{childList:true,characterData:true,subtree:true});}
 function init(){
-  installStyles();update();
-  const observer=new MutationObserver(schedule);
-  observer.observe(document.body,{childList:true,subtree:true,characterData:true});
-  window.addEventListener('rvt-conjugations-enriched',schedule);
+  installStyles();updateCore();
+  observe($('#promptText'),()=>accentOverlay($('#promptText')));
+  observe($('#solutionText'),()=>accentOverlay($('#solutionText')));
+  observe($('#acceptedText'),()=>accentOverlay($('#acceptedText')));
+  observe($('#wordList'),accentWordRows);
+  observe($('#difficultList'),accentDifficult);
+  observe($('#conjVerb'),updateCore);observe($('#conjSolution'),updateCore);observe($('#formPrompt'),updateCore);observe($('#formSolution'),updateCore);observe($('#sentenceSolution'),updateCore);
+  document.addEventListener('click',e=>{const b=e.target?.closest?.('.tab');if(!b)return;setTimeout(()=>{updateCore();accentWordRows();accentDifficult();},80)});
 }
 window.__rvtStress={accentize,lookup,stripStress};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
