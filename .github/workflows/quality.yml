@@ -43,8 +43,8 @@ jobs:
       - name: Stabilen Sprachkern und neue Module prüfen
         run: |
           test "$(git hash-object voice-controller.js)" = "b00010c267bff2c13205f7e7d281fa2af2d722d3"
-          grep -q "const BUILD='2026.09.03.76'" update-helper.js
-          grep -q "russisch-vokabeltrainer-v86" service-worker.js
+          grep -q "const BUILD='2026.09.03.77'" update-helper.js
+          grep -q "russisch-vokabeltrainer-v87" service-worker.js
           grep -q "await loadScript('car-mode.js'" update-helper.js
           grep -q "if(!window.__RVT_CAR_MODE)await loadScript('speech-start-guard.js'" update-helper.js
           grep -q "stress-lexicon-data.js" update-helper.js
@@ -55,6 +55,8 @@ jobs:
           ! grep -q 'observe(document.body' stress-display-lite.js
           ! grep -q 'SpeechRecognition' wrong-study-pause.js
           ! grep -q 'webkitSpeechRecognition' wrong-study-pause.js
+          grep -q 'accentSolution' wrong-study-pause.js
+          grep -q '__rvtStressLite' wrong-study-pause.js
           grep -q 'wrongReplaySolution' wrong-study-pause.js
           grep -q 'wrongContinue' wrong-study-pause.js
           grep -q 'build_active_stress.py' .github/workflows/pages.yml
