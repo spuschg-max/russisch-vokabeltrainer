@@ -92,24 +92,19 @@ def write_outputs(unique, ambiguous, rows):
     meta = {
         'source': 'OpenRussian / Russian Dictionary Data',
         'license': 'CC BY-SA 4.0',
-        'entries': len(unique),
+        'fullEntries': len(unique),
         'ambiguousOmitted': ambiguous,
         'rowsRead': rows,
-        'scope': 'lemmas+adjective-short-forms',
     }
 
-    # Volllexikon bleibt als Build-Ressource und für Satzverarbeitung vorhanden,
-    # wird im Browser aber nicht mehr synchron beim App-Start geparst.
-    full_payload = 'window.RVT_STRESS_LEXICON=' + json.dumps(unique, ensure_ascii=False, separators=(',', ':')) + ';\n'
-    full_payload += 'window.RVT_STRESS_META=' + json.dumps(meta, ensure_ascii=False, separators=(',', ':')) + ';\n'
-    (ROOT / 'stress-lexicon-data.js').write_text(full_payload, encoding='utf-8')
-
+    # Der beim App-Start geladene Dateiname bleibt aus Kompatibilitätsgründen
+    # gleich, enthält aber nur noch den kleinen A1/A2+B1-Kern.
     needed = core_keys()
     core = {k: v for k, v in unique.items() if k in needed}
-    core_meta = {**meta, 'entries': len(core), 'fullEntries': len(unique), 'scope': 'standard-a1a2+b1-core'}
+    core_meta = {**meta, 'entries': len(core), 'scope': 'standard-a1a2+b1-core'}
     core_payload = 'window.RVT_STRESS_LEXICON=' + json.dumps(core, ensure_ascii=False, separators=(',', ':')) + ';\n'
     core_payload += 'window.RVT_STRESS_META=' + json.dumps(core_meta, ensure_ascii=False, separators=(',', ':')) + ';\n'
-    (ROOT / 'stress-core-data.js').write_text(core_payload, encoding='utf-8')
+    (ROOT / 'stress-lexicon-data.js').write_text(core_payload, encoding='utf-8')
 
     chunks_dir = ROOT / 'stress-chunks'
     if chunks_dir.exists():
@@ -126,7 +121,7 @@ def write_outputs(unique, ambiguous, rows):
         payload = 'window.RVT_STRESS_LEXICON=Object.assign(window.RVT_STRESS_LEXICON||{},' + json.dumps(values, ensure_ascii=False, separators=(',', ':')) + ');\n'
         (chunks_dir / name).write_text(payload, encoding='utf-8')
 
-    print(f'Stress-Kern: {len(core)} Einträge · {len(chunks)} Bedarfspakete')
+    print(f'Stress-Kern: {len(core)} Einträge · {len(chunks)} Bedarfspakete · Vollbestand {len(unique)}')
     if len(core) < 700:
         raise RuntimeError('Betonungs-Kern unerwartet klein; Standardwortschatz prüfen.')
 
