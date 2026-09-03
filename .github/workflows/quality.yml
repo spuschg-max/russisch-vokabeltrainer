@@ -32,11 +32,27 @@ jobs:
           node --check motion-hints.js
           node --check reveal-answer.js
           node --check problem-vocab.js
+          node --check car-mode.js
+          node --check stress-display-lite.js
           node --check update-helper.js
           node --check exercise-packages.js
           node --check standard-pack.js
           node --check service-worker.js
-          python3 -m py_compile scripts/build_standard_vocab.py
+          python3 -m py_compile scripts/build_standard_vocab.py scripts/build_active_stress.py
+      - name: Stabilen Sprachkern und neue Module prüfen
+        run: |
+          test "$(git hash-object voice-controller.js)" = "b00010c267bff2c13205f7e7d281fa2af2d722d3"
+          grep -q "const BUILD='2026.09.03.75'" update-helper.js
+          grep -q "russisch-vokabeltrainer-v85" service-worker.js
+          grep -q "await loadScript('car-mode.js'" update-helper.js
+          grep -q "if(!window.__RVT_CAR_MODE)await loadScript('speech-start-guard.js'" update-helper.js
+          grep -q "stress-lexicon-data.js" update-helper.js
+          grep -q "stress-display-lite.js" update-helper.js
+          grep -q 'font-family:Arial' stress-display-lite.js
+          ! grep -q 'observe(document.body' stress-display-lite.js
+          grep -q 'build_active_stress.py' .github/workflows/pages.yml
+          ! grep -q 'sentence' .github/workflows/pages.yml
+          ! grep -q 'sentence' update-helper.js
       - name: Pflichtdateien prüfen
         run: |
           test -s index.html
@@ -59,6 +75,9 @@ jobs:
           test -s motion-hints.js
           test -s reveal-answer.js
           test -s problem-vocab.js
+          test -s car-mode.js
+          test -s stress-display-lite.js
+          test -s scripts/build_active_stress.py
           test -s update-helper.js
           test -s exercise-packages.js
           test -s standard-pack.js
