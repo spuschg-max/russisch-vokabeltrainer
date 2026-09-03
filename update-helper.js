@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.03.60';
+const BUILD='2026.09.03.61';
 window.__RVT_BUILD=BUILD;
 const $=s=>document.querySelector(s);
 let lastCheck=0;
@@ -23,15 +23,13 @@ async function loadHelpers(){
   loadScript('learning-ui.js','learning-ui');
   loadScript('motion-hints.js','motion-hints');
   loadScript('reveal-answer.js','reveal-answer');
-  // Kartenfunktion ausdrücklich laden, bevor Zusatzübungen starten.
   await loadScript('problem-vocab.js','problem-vocab');
   loadScript('conjugation-data-bridge.js','conjugation-data-bridge');
   await loadScript('conjugation-drill.js','conjugation-drill');
   await loadScript('conjugation-flow-fix.js','conjugation-flow-fix');
   loadScript('conjugation-study.js','conjugation-study');
 
-  // Nur ein winziger Platzhalter wird beim Start geladen. Die große Satzbank,
-  // die Satzübung und deren Sprachschleife kommen erst beim Antippen von „Sätze“.
+  // Die große Satzbank wird weiterhin erst beim Öffnen von „Sätze“ geladen.
   await loadScript('sentence-lazy-loader.js','sentence-lazy-loader');
 }
 function installUpdateHooks(){showVersion();loadHelpers();checkForUpdate(true);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkForUpdate()});window.addEventListener('pageshow',()=>checkForUpdate());if('serviceWorker'in navigator){navigator.serviceWorker.addEventListener('controllerchange',()=>{const t=$('#toast');if(t){t.textContent='Neue App-Version ist geladen. Beim nächsten Öffnen ist sie vollständig aktiv.';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3200)}})}}
