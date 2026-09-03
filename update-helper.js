@@ -1,7 +1,7 @@
 (() => {
 'use strict';
 // Normaler Vokabeltrainer: Kernlogik entspricht dem letzten Stand vor dem Satzmodul (e8285b2).
-const BUILD='2026.09.03.69';
+const BUILD='2026.09.03.70';
 window.__RVT_BUILD=BUILD;
 const $=s=>document.querySelector(s);
 let lastCheck=0;
