@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.03.57';
+const BUILD='2026.09.03.58';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 function showVersion(){const install=$('#installPanel');if(!install||$('#appBuildInfo'))return;const p=document.createElement('p');p.id='appBuildInfo';p.className='app-build-info';p.textContent=`App-Version ${BUILD} · Updates werden beim Öffnen automatisch geprüft.`;install.appendChild(p);const s=document.createElement('style');s.textContent='.app-build-info{margin-top:10px!important;font-size:12px;color:var(--muted)}';document.head.appendChild(s)}
@@ -22,7 +22,8 @@ async function loadHelpers(){
   loadScript('learning-ui.js','learning-ui');
   loadScript('motion-hints.js','motion-hints');
   loadScript('reveal-answer.js','reveal-answer');
-  loadScript('problem-vocab.js','problem-vocab');
+  // Kartenfunktion ausdrücklich laden, bevor Zusatzübungen starten.
+  await loadScript('problem-vocab.js','problem-vocab');
   loadScript('conjugation-data-bridge.js','conjugation-data-bridge');
   await loadScript('conjugation-drill.js','conjugation-drill');
   await loadScript('conjugation-flow-fix.js','conjugation-flow-fix');
