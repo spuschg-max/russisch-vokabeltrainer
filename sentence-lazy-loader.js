@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const VERSION='2026.09.03.65';
+const VERSION='2026.09.03.66';
 const $=s=>document.querySelector(s);
 let loading=false,loaded=false;
 
