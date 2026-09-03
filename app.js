@@ -20,9 +20,9 @@ function load(){
 }
 function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
 function pFor(id){
- if(!state.progress[id])state.progress[id]={level:0,due:0,seen:0,correct:0,wrong:0,hard:0,lapses:0,lastReview:0,lastResult:null,active:false,streak:0,nextTurn:0,reviewStage:0,postponed:false,dirStreak:{'ru-de':0,'de-ru':0}};
+ if(!state.progress[id])state.progress[id]={level:0,due:0,seen:0,correct:0,wrong:0,hard:0,lapses:0,lastReview:0,lastResult:null,active:false,streak:0,nextTurn:0,reviewStage:0,postponed:false,quickRepeat:false,dirStreak:{'ru-de':0,'de-ru':0}};
  const p=state.progress[id];
- if(typeof p.active!=='boolean')p.active=false;if(!Number.isFinite(Number(p.streak)))p.streak=0;if(!Number.isFinite(Number(p.nextTurn)))p.nextTurn=state.sessionTurn||0;if(!Number.isFinite(Number(p.reviewStage)))p.reviewStage=0;if(typeof p.postponed!=='boolean')p.postponed=false;
+ if(typeof p.active!=='boolean')p.active=false;if(!Number.isFinite(Number(p.streak)))p.streak=0;if(!Number.isFinite(Number(p.nextTurn)))p.nextTurn=state.sessionTurn||0;if(!Number.isFinite(Number(p.reviewStage)))p.reviewStage=0;if(typeof p.postponed!=='boolean')p.postponed=false;if(typeof p.quickRepeat!=='boolean')p.quickRepeat=false;
  if(!p.dirStreak||typeof p.dirStreak!=='object')p.dirStreak=null;
  return p;
 }
@@ -117,14 +117,27 @@ function scheduleLongReview(p,rating,correctAnswer,dir){
 }
 function review(rating){if(!current)return;const p=pFor(current.id),wasNew=p.seen===0,typed=$('#answerInput').value,automatic=state.settings.typing,correctAnswer=automatic?isAnswerCorrect(typed,current,currentDirection):(rating==='good'||rating==='easy');p.seen++;p.lastReview=now();p.lastResult=rating;state.sessionTurn++;const d=today();d.answers++;if(correctAnswer)d.correct++;if(wasNew)d.newIntroduced++;registerStudy();
  if(currentMode==='review')scheduleLongReview(p,rating,correctAnswer,currentDirection);else if(currentMode==='extra'&&!p.active&&p.reviewStage>0){if(!correctAnswer||rating==='again'||rating==='hard'){setDirValue(p,currentDirection,0);p.active=true;p.reviewStage=0;p.level=1;p.due=0;p.nextTurn=state.sessionTurn+(rating==='hard'?8:5);}else{p.correct++;setDirValue(p,currentDirection,5);p.lastReview=now();}}else scheduleLearning(p,rating,correctAnswer,currentDirection);
+ if(p.quickRepeat){p.active=true;p.postponed=false;p.reviewStage=0;p.due=0;p.nextTurn=state.sessionTurn+2;}
  extraMode=false;ensureActiveWindow();save();current=null;selectNext();renderProgress();}
 function markCurrentKnown(){
  if(!current)return;const p=pFor(current.id),wasNew=p.seen===0;
  setDirValue(p,'ru-de',5);setDirValue(p,'de-ru',5);p.seen++;p.correct++;p.lastReview=now();p.lastResult='known';p.postponed=false;state.postponedIds=state.postponedIds.filter(id=>id!==current.id);state.sessionTurn++;
  const d=today();d.answers++;d.correct++;if(wasNew)d.newIntroduced++;registerStudy();
- p.active=false;p.level=5;p.reviewStage=1;p.due=now()+7*DAY;p.nextTurn=state.sessionTurn;toast('Vokabel als sicher markiert – Wiederholung in einer Woche');
+ p.active=false;p.level=5;p.reviewStage=1;p.due=now()+7*DAY;p.nextTurn=state.sessionTurn;if(p.quickRepeat){p.active=true;p.reviewStage=0;p.due=0;p.nextTurn=state.sessionTurn+2;toast('Schnelllernen bleibt aktiv – nach zwei anderen Vokabeln wieder');}else toast('Vokabel als sicher markiert – Wiederholung in einer Woche');
  save();current=null;ensureActiveWindow();selectNext();renderProgress();
 }
+window.__rvtQuickRepeatCore={
+ currentId:()=>current?.id||null,
+ isOn:id=>!!(id&&state?.progress?.[id]?.quickRepeat),
+ set:(id,on)=>{
+  if(!id||!state?.words?.some(w=>w.id===id))return false;
+  const p=pFor(id);p.quickRepeat=!!on;p.postponed=false;state.postponedIds=state.postponedIds.filter(x=>x!==id);
+  if(p.quickRepeat){p.active=true;p.reviewStage=0;p.due=0;p.nextTurn=state.sessionTurn;}
+  else if(wordSecure(p)){p.active=false;p.level=5;p.reviewStage=Math.max(1,p.reviewStage||1);p.due=now()+7*DAY;p.nextTurn=state.sessionTurn;}
+  else{p.active=true;p.reviewStage=0;p.due=0;p.nextTurn=state.sessionTurn+5;}
+  save();return true;
+ }
+};
 function levelName(p){if(p.postponed)return'Hinten angestellt';if(!p.seen)return p.active?'Neu · aktiv':'Neu';if(p.active)return`Lernen · ${directionStatus(p)}`;if(p.level>=5)return'Sicher';return'Lernen'}
 function dueText(p){if(p.postponed)return'am Ende der Lektion';if(p.active){const gap=Math.max(0,(p.nextTurn||0)-state.sessionTurn);return gap<=0?'jetzt dran':gap===1?'nach 1 Karte':`nach ${gap} Karten`;}if(!p.seen)return'noch nicht gelernt';const diff=p.due-now();if(diff<=0)return'jetzt fällig';if(diff<60*MIN)return`in ${Math.max(1,Math.round(diff/MIN))} Min.`;if(diff<DAY)return`in ${Math.round(diff/HOUR)} Std.`;return`in ${Math.round(diff/DAY)} Tagen`}
 function updateSummary(){const due=longReviewWords().length,neu=newWords().length;$('#dueCount').textContent=due;$('#newCount').textContent=neu;$('#streakCount').textContent=state.streak.current||0;const tag=$('#cardTag');if(tag&&current){let info=$('#activePoolInfo');if(!info){info=document.createElement('small');info.id='activePoolInfo';info.style.display='block';info.style.marginTop='5px';info.style.fontSize='11px';info.style.color='var(--muted)';tag.insertAdjacentElement('afterend',info)}const limit=Math.max(1,Math.min(30,Number(state.settings.newLimit||12))),active=activeLearningWords().length,waiting=waitingRegularWords().length;info.textContent=`Aktiver Pool: ${active}/${limit}${waiting?` · ${waiting} warten`:''}`;}}
