@@ -1,0 +1,35 @@
+name: Einmaliger Schnelllern-Patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/patch_quick_repeat.py'
+      - '.github/workflows/patch-quick-repeat.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Schnelllern-Kernschnittstelle einbauen
+        run: python3 scripts/patch_quick_repeat.py
+      - name: JavaScript prüfen
+        run: node --check app.js
+      - name: Änderung committen
+        run: |
+          if git diff --quiet -- app.js; then
+            echo "app.js ist bereits gepatcht."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          git commit -m "Add quick-repeat core scheduling bridge"
+          git push
