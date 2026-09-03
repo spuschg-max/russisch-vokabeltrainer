@@ -1,4 +1,4 @@
-const CACHE='russisch-vokabeltrainer-v70';
+const CACHE='russisch-vokabeltrainer-v71';
 const ASSETS=['./','./index.html','./styles.css','./data.js','./app.js','./features.js','./speaking.js','./forms.js','./audio-toggle.js','./speech-unlock.js','./speech-tolerance.js','./speech-segmentation.js','./voice-controller.js','./voice-selfcheck.js','./wrong-study-pause.js','./voice-add.js','./learning-ui.js','./motion-hints.js','./reveal-answer.js','./problem-vocab.js','./stress-lexicon-data.js','./stress-display.js','./sentence-lazy-loader.js','./sentence-drill.js','./sentence-voice-loop.js','./conjugation-data-bridge.js','./conjugation-drill.js','./conjugation-flow-fix.js','./conjugation-study.js','./forms-voice.js','./update-helper.js','./exercise-packages.js','./import-code.js','./standard-a1a2-data.js','./standard-b1-data.js','./standard-pack.js','./manifest.webmanifest','./app-icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
@@ -9,7 +9,7 @@ self.addEventListener('fetch',event=>{
     event.respondWith(Promise.resolve(new Response('/* disabled: replaced by voice-controller.js */',{headers:{'Content-Type':'application/javascript; charset=utf-8','Cache-Control':'no-store'}})));
     return;
   }
-  if(url.pathname.includes('/private-packs/')){
+  if(url.pathname.includes('/private-packs/')||url.pathname.includes('/stress-chunks/')){
     event.respondWith(fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response}).catch(()=>caches.match(event.request)));
     return;
   }
