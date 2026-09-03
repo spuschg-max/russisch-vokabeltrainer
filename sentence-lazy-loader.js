@@ -1,54 +1,58 @@
 (() => {
 'use strict';
-const BANK_VERSION='2026.09.03.57';
-let loading=null;
+const VERSION='2026.09.03.59';
 const $=s=>document.querySelector(s);
+let loading=false,loaded=false;
 
-function renderState(text){
-  const meta=$('#sentenceMeta');if(meta)meta.textContent=text;
+function toast(msg){const t=$('#toast');if(!t)return;t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
+function script(src,key){
+  const existing=document.querySelector(`script[data-rvt-sentence-lazy="${key}"]`);
+  if(existing)return Promise.resolve(true);
+  return new Promise(resolve=>{
+    const s=document.createElement('script');
+    s.src=src+'?v='+encodeURIComponent(VERSION);s.async=false;s.dataset.rvtSentenceLazy=key;
+    s.onload=()=>resolve(true);s.onerror=()=>resolve(false);document.body.appendChild(s);
+  });
 }
-function setStartDisabled(v){const b=$('#sentenceStart');if(b)b.disabled=!!v;}
 function bankReady(){
   const bank=window.RVT_SENTENCE_BANK,meta=window.RVT_SENTENCE_META;
-  if(!Array.isArray(bank)||bank.length<1000||!meta?.pairs||!meta?.caseCounts)return false;
-  const probe=bank.find(p=>Array.isArray(p)&&p.length>=4&&Number(p[2])>0&&Array.isArray(p[3]));
-  return !!probe;
+  return Array.isArray(bank)&&bank.length>=1000&&!!meta?.pairs&&!!meta?.caseCounts;
 }
-function clearOldBank(){
-  try{delete window.RVT_SENTENCE_BANK;delete window.RVT_SENTENCE_META;}catch(e){window.RVT_SENTENCE_BANK=[];window.RVT_SENTENCE_META={};}
-  document.querySelectorAll('script[data-rvt-sentence-bank]').forEach(s=>s.remove());
+function placeholder(){
+  if(loaded||loading||$('#sentenceTab')||!$('.tabs'))return;
+  const b=document.createElement('button');b.id='sentenceTab';b.className='tab';b.type='button';b.textContent='Sätze';b.dataset.rvtLazyPlaceholder='1';b.title='Satzübung öffnen';$('.tabs').appendChild(b);
 }
-function loadBank(){
-  if(bankReady())return Promise.resolve(true);
-  if(loading)return loading;
-  clearOldBank();setStartDisabled(true);renderState('Aktuelle Satzbank mit Kasusdaten wird geladen …');
-  loading=new Promise(resolve=>{
-    const s=document.createElement('script');
-    s.src='sentence-bank-data.js?v='+encodeURIComponent(BANK_VERSION);
-    s.async=true;s.dataset.rvtSentenceBank=BANK_VERSION;
-    s.onload=()=>resolve(bankReady());s.onerror=()=>resolve(false);document.body.appendChild(s);
-  }).then(ok=>{
-    loading=null;setStartDisabled(false);
-    if(ok){
-      const m=window.RVT_SENTENCE_META||{},c=m.caseCounts||{};
-      renderState(`${Number(m.pairs||0).toLocaleString('de-DE')} Satzpaare · Kasusdaten geladen`);
-      document.dispatchEvent(new Event('rvt-sentence-bank-ready'));
-      return true;
+async function openSentences(){
+  if(loading||loaded)return;loading=true;
+  const old=$('#sentenceTab[data-rvt-lazy-placeholder="1"]');if(old){old.disabled=true;old.textContent='Sätze …';}
+  toast('Satzübung wird geladen …');
+  try{
+    old?.remove();
+    const drillOk=await script('sentence-drill.js','drill');
+    if(!drillOk)throw new Error('drill');
+    const real=$('#sentenceTab');if(real){real.disabled=true;real.textContent='Sätze …';}
+    try{delete window.RVT_SENTENCE_BANK;delete window.RVT_SENTENCE_META;}catch(e){}
+    const bankOk=await script('sentence-bank-data.js','bank');
+    if(!bankOk||!bankReady())throw new Error('bank');
+    await script('sentence-voice-loop.js','voice');
+    loaded=true;loading=false;
+    if(real){real.disabled=false;real.textContent='Sätze';}
+    document.dispatchEvent(new Event('rvt-sentence-bank-ready'));
+    setTimeout(()=>$('#sentenceTab')?.click(),40);
+  }catch(e){
+    loading=false;loaded=false;
+    $('#view-sentences')?.remove();$('#sentenceTab')?.remove();
+    placeholder();toast('Satzübung konnte nicht geladen werden.');
+  }
+}
+function init(){
+  placeholder();
+  document.addEventListener('click',e=>{
+    if(e.target?.closest?.('#sentenceTab[data-rvt-lazy-placeholder="1"]')){
+      e.preventDefault();e.stopImmediatePropagation();openSentences();
     }
-    renderState('Aktuelle Satzbank konnte nicht geladen werden. Bitte den Bereich erneut öffnen.');
-    return false;
-  });
-  return loading;
+  },true);
+  new MutationObserver(()=>{if(!loaded&&!loading)placeholder()}).observe(document.body,{childList:true,subtree:true});
 }
-
-document.addEventListener('click',e=>{
-  if(e.target?.closest?.('#sentenceTab'))loadBank();
-},true);
-
-document.addEventListener('click',e=>{
-  const b=e.target?.closest?.('#sentenceStart');if(!b)return;
-  if(bankReady())return;
-  e.preventDefault();e.stopImmediatePropagation();
-  loadBank().then(ok=>{if(ok)setTimeout(()=>$('#sentenceStart')?.click(),30);});
-},true);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
