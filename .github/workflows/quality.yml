@@ -128,3 +128,5 @@ jobs:
           grep -q 'conjugation-flow-fix.js' service-worker.js
           grep -q 'waitUntilSpeechEnds' conjugation-flow-fix.js
           grep -q 'DEFAULT_VOCABULARY' data.js
+          grep -q 'function setText' problem-vocab.js
+          ! grep -q 'observe(card' problem-vocab.js

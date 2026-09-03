@@ -73,22 +73,23 @@ function finishProblemAction(id,dir,wasDailyReview,wholeWordKnown=false){
   p.dirStreak=p.dirStreak||{};p.dirStreak['ru-de']=5;p.dirStreak['de-ru']=5;p.active=false;p.level=5;p.reviewStage=1;p.due=Date.now()+DAY;p.nextTurn=Number(state.sessionTurn||0);p.problemDailyDone=[];
   saveState(state);toast('Problemvokabel heute in beiden Richtungen wiederholt');setTimeout(()=>location.reload(),260);
 }
+function setText(el,text){if(el&&el.textContent!==text)el.textContent=text;}
 function render(){
   const b=$('#problemCurrent');if(!b)return;
   const state=loadState(),w=selectedWord(state),on=!!(w&&state.progress?.[w.id]?.problem);
   b.classList.toggle('problem-active',on);b.setAttribute('aria-pressed',on?'true':'false');
-  b.textContent=on?'⚠ Problem: beide Richtungen':'⚠ Problemvokabel';
+  setText(b,on?'⚠ Problem: beide Richtungen':'⚠ Problemvokabel');
   b.title=on?'Problemstatus für diese Vokabel ausschalten':'Diese Vokabel täglich in Deutsch→Russisch UND Russisch→Deutsch wiederholen';
   let info=$('#problemVocabInfo');
   if(!info){info=document.createElement('small');info.id='problemVocabInfo';info.className='problem-vocab-info';($('#activePoolInfo')||$('#cardTag'))?.insertAdjacentElement('afterend',info);}
-  if(info){info.textContent=on?'⚠ Problemvokabel: täglich · beide Richtungen':'';info.classList.toggle('hidden',!on);}
+  if(info){setText(info,on?'⚠ Problemvokabel: täglich · beide Richtungen':'');info.classList.toggle('hidden',!on);}
   decorateWordList(state);
 }
 function decorateWordList(state=loadState()){
   document.querySelectorAll('.word-row[data-id]').forEach(row=>{
     const on=!!state.progress?.[row.dataset.id]?.problem;row.classList.toggle('problem-word-row',on);
     let badge=row.querySelector('.problem-word-badge');
-    if(on&&!badge){badge=document.createElement('span');badge.className='problem-word-badge';badge.textContent='⚠ täglich · beide Richtungen';row.appendChild(badge);}else if(on&&badge)badge.textContent='⚠ täglich · beide Richtungen';else if(!on&&badge)badge.remove();
+    if(on&&!badge){badge=document.createElement('span');badge.className='problem-word-badge';badge.textContent='⚠ täglich · beide Richtungen';row.appendChild(badge);}else if(on&&badge){setText(badge,'⚠ täglich · beide Richtungen');}else if(!on&&badge)badge.remove();
   });
 }
 function installButton(){
@@ -111,7 +112,6 @@ function installStyles(){
 }
 function install(){
   installStyles();installButton();render();
-  const card=$('#learnCard');if(card)new MutationObserver(()=>setTimeout(()=>{installButton();render();},30)).observe(card,{childList:true,subtree:true,characterData:true});
   const prompt=$('#promptText');if(prompt)new MutationObserver(()=>setTimeout(()=>{installButton();render();},40)).observe(prompt,{childList:true,characterData:true,subtree:true});
   const list=$('#wordList');if(list)new MutationObserver(()=>decorateWordList()).observe(list,{childList:true,subtree:true});
   let tries=0;const retry=setInterval(()=>{tries++;installButton();if($('#problemCurrent')||tries>=80)clearInterval(retry)},250);
