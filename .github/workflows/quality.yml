@@ -27,18 +27,22 @@ jobs:
           ! grep -q "loadScript('speech-start-guard.js'" update-helper.js
           ! grep -q "loadScript('voice-selfcheck.js'" update-helper.js
           ! grep -q "loadScript('wrong-study-pause.js'" update-helper.js
+          ! grep -q "loadScript('speech-tolerance.js'" update-helper.js
+          ! grep -q "loadScript('speech-segmentation.js'" update-helper.js
           grep -q 'speech-start-guard.js' service-worker.js
           grep -q 'voice-selfcheck.js' service-worker.js
           grep -q 'wrong-study-pause.js' service-worker.js
+          grep -q 'speech-tolerance.js' service-worker.js
+          grep -q 'speech-segmentation.js' service-worker.js
           grep -q 'rvt-stress-overlay' stress-display.js
           grep -q 'rvt-stressed-vowel' stress-display.js
           ! grep -q 'observe(document.body' stress-display.js
           grep -q "await loadScript('stress-display.js'" update-helper.js
           grep -q 'Legacy-Sprachsteuerung dauerhaft deaktiviert' voice-persistence.js
-          grep -q "const BUILD='2026.09.03.71'" update-helper.js
+          grep -q "const BUILD='2026.09.03.72'" update-helper.js
           grep -q "sentence-lazy-loader.js" update-helper.js
           ! grep -q "sentence-bank-data.js" update-helper.js
-          grep -q "russisch-vokabeltrainer-v81" service-worker.js
+          grep -q "russisch-vokabeltrainer-v82" service-worker.js
       - name: Satz- und Kasusmodul prüfen
         run: |
           grep -q 'id="sentenceCase"' sentence-drill.js
