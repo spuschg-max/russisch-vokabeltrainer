@@ -12,11 +12,38 @@ BANK = ROOT / 'sentence-bank-data.js'
 OPENRUSSIAN = [
     'https://raw.githubusercontent.com/Badestrand/russian-dictionary/master/nouns.csv',
     'https://raw.githubusercontent.com/Badestrand/russian-dictionary/master/adjectives.csv',
+    'https://raw.githubusercontent.com/Badestrand/russian-dictionary/master/others.csv',
 ]
 CASE_BITS = {'acc': 1, 'dat': 2, 'gen': 4, 'inst': 8, 'prep': 16}
 CASE_NAMES = {'acc': 'Akkusativ', 'dat': 'Dativ', 'gen': 'Genitiv', 'inst': 'Instrumental', 'prep': 'Präpositiv'}
 TOKEN = re.compile(r'[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)*')
 COMBINING = '\u0301'
+
+# Wir markieren bewusst nur kontextgesicherte Kasus. Eine russische Wortform
+# allein kann mit einem Adverb/Namen oder einem anderen Kasus zusammenfallen
+# (z. B. там, потом). Die Präposition + morphologisch passende Flexionsform
+# ist für eine Lernübung wesentlich verlässlicher.
+PREPS = {
+    'acc': {'в', 'на', 'через', 'про'},
+    'dat': {'к', 'по', 'благодаря', 'согласно', 'вопреки'},
+    'gen': {'без', 'у', 'из', 'от', 'до', 'для', 'около', 'возле', 'после', 'кроме', 'против', 'вокруг', 'среди', 'из-за', 'из-под'},
+    'inst': {'с', 'над', 'перед', 'между', 'под', 'за'},
+    'prep': {'о', 'об', 'обо', 'при', 'в', 'на'},
+}
+
+# Häufige Pronomen, die in der Nomen-/Adjektivtabelle nicht zuverlässig
+# als Deklinationsreihe vorliegen. Mehrdeutigkeit wird erst durch die
+# Präposition aufgelöst.
+MANUAL = {
+    'меня': {'gen', 'acc'}, 'мне': {'dat', 'prep'}, 'мной': {'inst'}, 'мною': {'inst'},
+    'тебя': {'gen', 'acc'}, 'тебе': {'dat', 'prep'}, 'тобой': {'inst'}, 'тобою': {'inst'},
+    'его': {'gen', 'acc'}, 'ему': {'dat'}, 'им': {'dat', 'inst'}, 'нем': {'prep'}, 'нём': {'prep'},
+    'ее': {'gen', 'acc'}, 'её': {'gen', 'acc'}, 'ей': {'dat', 'inst', 'prep'}, 'нее': {'gen', 'acc'}, 'неё': {'gen', 'acc'}, 'ней': {'inst', 'prep'},
+    'нас': {'gen', 'acc', 'prep'}, 'нам': {'dat'}, 'нами': {'inst'},
+    'вас': {'gen', 'acc', 'prep'}, 'вам': {'dat'}, 'вами': {'inst'},
+    'их': {'gen', 'acc'}, 'них': {'gen', 'acc', 'prep'}, 'ими': {'inst'},
+    'себя': {'gen', 'acc'}, 'себе': {'dat', 'prep'}, 'собой': {'inst'}, 'собою': {'inst'},
+}
 
 
 def fetch(url):
@@ -35,16 +62,21 @@ def field_case(field):
     for case in CASE_BITS:
         if f.endswith('_' + case) or ('_' + case + '_') in f:
             return case
+    # Manche Quellen verwenden loc/prepos statt prep.
+    if f.endswith('_loc') or '_loc_' in f or f.endswith('_prepos') or '_prepos_' in f:
+        return 'prep'
     return None
 
 
 def build_form_masks():
     forms = defaultdict(int)
     rows = 0
+    fields_seen = set()
     for url in OPENRUSSIAN:
         reader = csv.DictReader(io.StringIO(fetch(url)), delimiter='\t')
         case_fields = [(field, field_case(field)) for field in (reader.fieldnames or [])]
         case_fields = [(field, case) for field, case in case_fields if case]
+        fields_seen.update(field for field, _ in case_fields)
         for row in reader:
             rows += 1
             for field, case in case_fields:
@@ -53,10 +85,13 @@ def build_form_masks():
                     key = plain(token)
                     if key:
                         forms[key] |= bit
-    # Nur Wortformen behalten, die global eindeutig genau einem Zielkasus zugeordnet sind.
-    unique = {form: mask for form, mask in forms.items() if mask and (mask & (mask - 1)) == 0}
-    print(f'Kasusformen: {len(unique)} eindeutige Wortformen aus {rows} Datensätzen')
-    return unique
+    for token, cases in MANUAL.items():
+        for case in cases:
+            forms[plain(token)] |= CASE_BITS[case]
+    if len(forms) < 10000:
+        raise RuntimeError(f'Kasuslexikon unplausibel klein: {len(forms)} Wortformen')
+    print(f'Kasusformen: {len(forms)} Wortformen aus {rows} Datensätzen · {len(fields_seen)} Flexionsspalten')
+    return forms
 
 
 def read_bank():
@@ -72,21 +107,46 @@ def read_bank():
 
 
 def sentence_cases(text, forms):
-    mask = 0
-    first_example = {}
-    # Betonungszeichen entfernen, bevor Wörter tokenisiert werden.
     clean = str(text or '').replace(COMBINING, '')
-    for token in TOKEN.findall(clean):
-        key = plain(token)
-        bit = forms.get(key, 0)
-        if not bit:
+    tokens = [(plain(m.group(0)), m.group(0)) for m in TOKEN.finditer(clean)]
+    mask = 0
+    evidence = []
+    seen = set()
+
+    for i in range(1, len(tokens)):
+        prev_key, prev_surface = tokens[i - 1]
+        key, surface = tokens[i]
+        possible = forms.get(key, 0)
+        if not possible:
             continue
-        mask |= bit
-        for case, case_bit in CASE_BITS.items():
-            if bit == case_bit and case not in first_example:
-                first_example[case] = token
-    evidence = [[case, first_example[case]] for case in CASE_BITS if case in first_example]
-    return mask, evidence
+        for case, bit in CASE_BITS.items():
+            if not (possible & bit):
+                continue
+            if prev_key not in {plain(p) for p in PREPS[case]}:
+                continue
+            # в/на können Akkusativ ODER Präpositiv regieren. Die tatsächliche
+            # Flexionsform muss deshalb den Zielkasus zulassen. Wenn eine Form
+            # laut Morphologie beide Fälle zulässt, markieren wir sie nicht.
+            if prev_key in {'в', 'на'} and case in {'acc', 'prep'}:
+                competing = CASE_BITS['prep' if case == 'acc' else 'acc']
+                if possible & competing:
+                    continue
+            mask |= bit
+            item = [case, f'{prev_surface} + {surface}']
+            k = tuple(item)
+            if k not in seen:
+                evidence.append(item)
+                seen.add(k)
+
+    # Pro Kasus höchstens zwei Hinweise speichern; das hält die Offline-Datei klein.
+    compact = []
+    per_case = Counter()
+    for case, label in evidence:
+        if per_case[case] >= 2:
+            continue
+        compact.append([case, label])
+        per_case[case] += 1
+    return mask, compact
 
 
 def main():
@@ -115,12 +175,13 @@ def main():
                 counts[case] += 1
     meta['caseAnnotatedPairs'] = tagged
     meta['caseCounts'] = {CASE_NAMES[k]: counts[k] for k in CASE_BITS}
+    meta['caseAnnotationMethod'] = 'preposition+morphology'
     payload = 'window.RVT_SENTENCE_BANK=' + json.dumps(pairs, ensure_ascii=False, separators=(',', ':')) + ';\n'
     payload += 'window.RVT_SENTENCE_META=' + json.dumps(meta, ensure_ascii=False, separators=(',', ':')) + ';\n'
     BANK.write_text(payload, encoding='utf-8')
     print('Kasus-Satzanzahl: ' + ' · '.join(f'{CASE_NAMES[k]} {counts[k]}' for k in CASE_BITS))
-    if min(counts.values() or [0]) < 500:
-        raise RuntimeError('Für mindestens einen Kasus wurden zu wenige eindeutige Sätze markiert')
+    if min(counts.values() or [0]) < 300:
+        raise RuntimeError('Für mindestens einen Kasus wurden zu wenige kontextgesicherte Sätze markiert')
 
 
 if __name__ == '__main__':
