@@ -78,7 +78,8 @@ function chooseDirection(p){
  return Math.random()<.5?'ru-de':'de-ru';
 }
 function selectNext(){
- ensureActiveWindow();let pool=longReviewWords();currentMode='review';
+ ensureActiveWindow();const quick=activeLearningWords().filter(w=>pFor(w.id).quickRepeat&&pFor(w.id).nextTurn<=state.sessionTurn).sort((a,b)=>pFor(a.id).nextTurn-pFor(b.id).nextTurn||wordIndex(a.id)-wordIndex(b.id));let pool=quick;currentMode='learning';
+ if(!pool.length){pool=longReviewWords();currentMode='review';}
  if(!pool.length){currentMode='learning';const active=activeLearningWords();pool=active.filter(w=>pFor(w.id).nextTurn<=state.sessionTurn).sort((a,b)=>pFor(a.id).nextTurn-pFor(b.id).nextTurn||wordIndex(a.id)-wordIndex(b.id));if(!pool.length&&active.length){const min=Math.min(...active.map(w=>pFor(w.id).nextTurn));if(Number.isFinite(min)&&min>state.sessionTurn)state.sessionTurn=min;pool=active.filter(w=>pFor(w.id).nextTurn<=state.sessionTurn).sort((a,b)=>pFor(a.id).nextTurn-pFor(b.id).nextTurn||wordIndex(a.id)-wordIndex(b.id));}}
  if(!pool.length&&extraMode&&state.words.length){currentMode='extra';pool=state.words.filter(w=>!pFor(w.id).postponed).slice().sort((a,b)=>(pFor(a.id).lastReview||0)-(pFor(b.id).lastReview||0)||wordIndex(a.id)-wordIndex(b.id));}
  current=pool.length?pool[0]:null;if(current)currentDirection=chooseDirection(pFor(current.id));renderCard();save();
