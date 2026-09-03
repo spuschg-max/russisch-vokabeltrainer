@@ -1,7 +1,7 @@
 (() => {
 'use strict';
 // Normaler Vokabeltrainer: Kernlogik entspricht dem letzten Stand vor dem Satzmodul (e8285b2).
-const BUILD='2026.09.03.68';
+const BUILD='2026.09.03.69';
 window.__RVT_BUILD=BUILD;
 const $=s=>document.querySelector(s);
 let lastCheck=0;
@@ -21,7 +21,7 @@ function loadScript(src,key){
   return new Promise(resolve=>{const s=document.createElement('script');s.src=src+'?v='+BUILD;s.dataset.helper=key;s.async=false;s.onload=()=>resolve(true);s.onerror=()=>resolve(false);document.body.appendChild(s);});
 }
 async function loadHelpers(){
-  loadScript('stress-display.js','stress-display');
+  await loadScript('stress-display.js','stress-display');
   loadScript('import-code.js','import-code');
   loadScript('voice-add.js','voice-add');
   loadScript('learning-ui.js','learning-ui');
