@@ -19,21 +19,26 @@ jobs:
       - name: Stabilen Vokabelkern und iOS-Kartenwechsel prüfen
         run: |
           test "$(git hash-object problem-vocab.js)" = "599eef4fb9ab9e92f8e20c4bd56ed1598f611ed6"
-          test "$(git hash-object speech-start-guard.js)" = "1cddd00e262cc0c039cf77bbe8fb8f3acef1e3d8"
           test "$(git hash-object speech-unlock.js)" = "551f97a04e2af4410d8d2be3af8617a1e2b9cdf2"
           grep -q 'r.continuous=false' voice-controller.js
           ! grep -q 'continuous=true' voice-controller.js
           grep -q 'scheduleFreshRecognition' voice-controller.js
           grep -q 'stopRecognition(false);enableAnswerControls' voice-controller.js
+          ! grep -q "loadScript('speech-start-guard.js'" update-helper.js
+          ! grep -q "loadScript('voice-selfcheck.js'" update-helper.js
+          ! grep -q "loadScript('wrong-study-pause.js'" update-helper.js
+          grep -q 'speech-start-guard.js' service-worker.js
+          grep -q 'voice-selfcheck.js' service-worker.js
+          grep -q 'wrong-study-pause.js' service-worker.js
           grep -q 'rvt-stress-overlay' stress-display.js
           grep -q 'rvt-stressed-vowel' stress-display.js
           ! grep -q 'observe(document.body' stress-display.js
           grep -q "await loadScript('stress-display.js'" update-helper.js
           grep -q 'Legacy-Sprachsteuerung dauerhaft deaktiviert' voice-persistence.js
-          grep -q "const BUILD='2026.09.03.70'" update-helper.js
+          grep -q "const BUILD='2026.09.03.71'" update-helper.js
           grep -q "sentence-lazy-loader.js" update-helper.js
           ! grep -q "sentence-bank-data.js" update-helper.js
-          grep -q "russisch-vokabeltrainer-v80" service-worker.js
+          grep -q "russisch-vokabeltrainer-v81" service-worker.js
       - name: Satz- und Kasusmodul prüfen
         run: |
           grep -q 'id="sentenceCase"' sentence-drill.js
