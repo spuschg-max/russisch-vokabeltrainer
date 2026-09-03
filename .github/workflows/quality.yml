@@ -28,6 +28,7 @@ jobs:
           node --check voice-controller.js
           node --check voice-selfcheck.js
           node --check wrong-study-pause.js
+          node --check quick-repeat.js
           node --check voice-add.js
           node --check learning-ui.js
           node --check motion-hints.js
@@ -43,14 +44,23 @@ jobs:
       - name: Stabilen Sprachkern und neue Module prüfen
         run: |
           test "$(git hash-object voice-controller.js)" = "b00010c267bff2c13205f7e7d281fa2af2d722d3"
-          grep -q "const BUILD='2026.09.03.77'" update-helper.js
-          grep -q "russisch-vokabeltrainer-v87" service-worker.js
+          grep -q "const BUILD='2026.09.03.78'" update-helper.js
+          grep -q "russisch-vokabeltrainer-v88" service-worker.js
           grep -q "await loadScript('car-mode.js'" update-helper.js
           grep -q "if(!window.__RVT_CAR_MODE)await loadScript('speech-start-guard.js'" update-helper.js
           grep -q "stress-lexicon-data.js" update-helper.js
           grep -q "stress-display-lite.js" update-helper.js
           grep -q "wrong-study-pause.js" update-helper.js
           grep -q "wrong-study-pause.js" service-worker.js
+          grep -q "quick-repeat.js" update-helper.js
+          grep -q "quick-repeat.js" service-worker.js
+          grep -q 'window.__rvtQuickRepeatCore=' app.js
+          grep -q 'if(p.quickRepeat)' app.js
+          grep -q 'p.nextTurn=state.sessionTurn+2' app.js
+          grep -q 'quickRepeatCurrent' quick-repeat.js
+          grep -q 'repeatWordInline' quick-repeat.js
+          ! grep -q 'SpeechRecognition' quick-repeat.js
+          ! grep -q 'webkitSpeechRecognition' quick-repeat.js
           grep -q 'font-family:Arial' stress-display-lite.js
           ! grep -q 'observe(document.body' stress-display-lite.js
           ! grep -q 'SpeechRecognition' wrong-study-pause.js
@@ -80,6 +90,7 @@ jobs:
           test -s voice-controller.js
           test -s voice-selfcheck.js
           test -s wrong-study-pause.js
+          test -s quick-repeat.js
           test -s voice-add.js
           test -s learning-ui.js
           test -s motion-hints.js
