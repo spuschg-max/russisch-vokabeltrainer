@@ -113,8 +113,13 @@ jobs:
           grep -q 'id="sentenceCase"' sentence-drill.js
           grep -q 'sentence-lazy-loader.js' update-helper.js
           grep -q 'sentence-lazy-loader.js' service-worker.js
-          grep -q 'sentence-voice-loop.js' update-helper.js
-          grep -q 'sentence-voice-loop.js' service-worker.js
+          grep -q 'sentence-drill.js' sentence-lazy-loader.js
+          grep -q 'sentence-bank-data.js' sentence-lazy-loader.js
+          grep -q 'sentence-voice-loop.js' sentence-lazy-loader.js
+          ! grep -q "loadScript('sentence-drill.js'" update-helper.js
+          ! grep -q "loadScript('sentence-voice-loop.js'" update-helper.js
+          grep -q 'Times New Roman' stress-display.js
+          ! grep -q 'rvt-stress-vowel' stress-display.js
           grep -q 'conjugation-flow-fix.js' update-helper.js
           grep -q 'conjugation-flow-fix.js' service-worker.js
           grep -q 'waitUntilSpeechEnds' conjugation-flow-fix.js
