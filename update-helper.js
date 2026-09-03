@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const BUILD='2026.09.03.75';
+const BUILD='2026.09.03.76';
 const $=s=>document.querySelector(s);
 let lastCheck=0;
 
@@ -35,6 +35,7 @@ async function loadHelpers(){
   if(!window.__RVT_CAR_MODE)await loadScript('speech-start-guard.js','speech-start-guard');
   await loadScript('voice-controller.js','voice-controller');
   await loadScript('voice-selfcheck.js','voice-selfcheck');
+  await loadScript('wrong-study-pause.js','wrong-study-pause');
 }
 function installUpdateHooks(){
   showVersion();loadHelpers();checkForUpdate(true);
